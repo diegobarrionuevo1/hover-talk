@@ -90,7 +90,7 @@ All three probes re-run from `spikes/ax-probes/`; `trusted=true`, frontmost Ghos
 ## Tasks
 - [x] **T1** Scaffold: SwiftPM package, menu-bar app target, bundling script into `.app` (`LSUIElement`), Accessibility permission check and onboarding prompt, MIT `LICENSE`, `.gitignore`.
 - [x] **T2** Sentence splitter and `SpeechEngine`. Playback queue with pause/resume, back/forward by sentence, rate change, stop. Unit tests for splitting and queue navigation.
-- [ ] **T3** Floating controller panel wired to `SpeechEngine`.
+- [x] **T3** Floating controller panel wired to `SpeechEngine`.
 - [ ] **T4** `TerminalGridProvider`: mouse → row mapping, paragraph expansion, wrapped-line joining, rect for the highlight. Tests with sanitized fixtures captured from real Ghostty dumps.
 - [ ] **T5** TUI profiles: OpenCode, Claude Code, tmux status bar, plain shell. Detection markers and chrome stripping. Fixture tests per profile.
 - [ ] **T6** Picker mode: global hotkey, overlay highlight following the mouse, click to read, Esc to cancel. **Checkpoint demo with the founder.**
@@ -120,13 +120,15 @@ Per task: route (inline or delegated, with trigger), commit, checks observed, re
 |------|-------|--------|--------|--------|
 | bootstrap | inline (mechanical move) | e0ff76d | structural readback | first boundary (no assess: empty base) |
 | T1 | delegated (writer trigger: 7+ non-trivial files) | 421ff25 | `swift build` ok, no warnings; `swift test` 9/9 (RED observed first); `bundle.sh` ok; plist lint ok; `LSUIElement` true; codesign valid | high → granted → 4 lenses approved, acknowledged (boundary 421ff25) |
-| T2 | delegated (writer trigger: 10 non-trivial files; resumed once after an API disconnect) | see git log (`feat: add sentence splitter and playback queue`) | `swift build` 0 warnings; `swift test` 79/79 (RED observed per suite first); `bundle.sh` ok | pending assess |
+| T2 | delegated (writer trigger: 10 non-trivial files; resumed once after an API disconnect) | 0213aeb | `swift build` 0 warnings; `swift test` 79/79 (RED observed per suite first); `bundle.sh` ok | medium, `review_due` false: `under_budget` reported for 1427 changed lines (looks like a budget-classification defect in the tool; recorded, not overridden); slice stays pending from 421ff25 |
+| T3 | delegated (writer trigger: 8 non-trivial files) | see git log (`feat: add floating playback controller`) | `swift build` 0 warnings; `swift test` 100/100 (RED observed; mutation check on negative tests); `bundle.sh` ok; release binary has no debug clipboard symbol | pending assess |
 
 ## Progress
 - 2026-10-16: The AX feasibility probe on Ghostty is done (see Validated facts).
 - 2026-10-16: Repository initialised (`main`), document moved here, probes moved to `spikes/ax-probes/`, probes re-run (see Re-probe). Environment: macOS 26.2, Swift 6.3.2, Xcode installed.
 - 2026-10-16: T1 done. Targets `HoverTalkCore` (pure, no AppKit, Swift Testing), `HoverTalk` (AppKit executable), `HoverTalkCoreTests`. The working name lives in `AppInfo.name` and the top of `scripts/bundle.sh`. Gotchas: Swift 6 rejects `kAXTrustedCheckOptionPrompt` unless `ApplicationServices` is imported with `@preconcurrency` (kept to one file); the ad-hoc signature changes per build, so macOS may re-ask for Accessibility after rebuilding. Pending manual check: launch the app and confirm the onboarding alert, menu and polling flip to Granted.
 - 2026-10-16: T2 done (~1.4k authored lines, 922 of them tests; over the 400 heuristic because the queue's state × command sequences and the stale-event race tests need it). `PlaybackQueue` is a pure state machine returning `SpeechCommand`s; every utterance has a UUID and stale engine events are ignored (prevents the late didFinish/didCancel double-skip). Rate change while playing re-speaks the rest of the sentence from the last word offset (UTF-16, rounded to a Character boundary). NLTokenizer facts (macOS 26.2): keeps "Dr.", "e.g.", "3.5", "v1.2.3", "Package.swift" intact; does not split "it works. then…" (lowercase after period). Unverified until T3 audio check: `AVSpeechEngine` delegate identity mapping, didCancel after stop, speak right after stop while paused. Product defaults to confirm at the checkpoint: next/previous do nothing while idle; stop resets to sentence 0. Spanish text may get a non-Spanish default voice until T10.
+- 2026-10-16: T3 done (~676 authored lines). Core: `ControllerPresentation`, `ControllerPlacement`, `ControllerAction` + `Player.perform`. App: borderless non-activating `ControllerPanel` (AppKit, `acceptsFirstMouse`), `ReadingSession.read(_:)` as the single entry point for T6–T9, DEBUG-only "Read Clipboard" menu item for smoke tests via `swift run`. Not yet seen on screen: click-through, drag, HUD contrast, no focus steal, audio. Checkpoint defaults to confirm: previous disabled at sentence 1 and next at the last sentence; panel re-centers on the mouse's screen each time (no remembered position until T10).
 
 ## Next step
-T3 floating controller panel wired to `Player`.
+T4 `TerminalGridProvider` with pane detection (see Re-probe).

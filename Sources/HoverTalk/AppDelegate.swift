@@ -8,8 +8,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let statusMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private var trustPollTimer: Timer?
+    private var readingSession: ReadingSession?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        readingSession = ReadingSession(player: Player(engine: AVSpeechEngine()), controller: ControllerPanel())
         installStatusItem()
 
         let presentation = AccessibilityPresenter.presentation(for: AccessibilityPermission.currentStatus())
@@ -51,6 +53,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         openSettingsItem.target = self
         menu.addItem(openSettingsItem)
+
+        #if DEBUG
+        // Manual audio and controller check until a text provider exists. Not in release builds.
+        let readClipboardItem = NSMenuItem(title: "Read Clipboard", action: #selector(readClipboard), keyEquivalent: "")
+        readClipboardItem.target = self
+        menu.addItem(readClipboardItem)
+        #endif
 
         menu.addItem(.separator())
 
@@ -121,4 +130,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openAccessibilitySettings() {
         NSWorkspace.shared.open(AccessibilityPresenter.settingsURL)
     }
+
+    #if DEBUG
+    @objc private func readClipboard() {
+        guard let text = NSPasteboard.general.string(forType: .string) else { return }
+        readingSession?.read(text)
+    }
+    #endif
 }
