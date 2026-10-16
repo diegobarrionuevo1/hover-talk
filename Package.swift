@@ -10,7 +10,7 @@ let package = Package(
         .executable(name: "HoverTalk", targets: ["HoverTalk"]),
     ],
     targets: [
-        // Pure, unit-testable logic. Rule: import Foundation/CoreGraphics only, never AppKit.
+        // Pure, unit-testable logic. Rule: Foundation, CoreGraphics and NaturalLanguage only, never AppKit.
         .target(
             name: "HoverTalkCore"
         ),

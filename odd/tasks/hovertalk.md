@@ -89,11 +89,12 @@ All three probes re-run from `spikes/ax-probes/`; `trusted=true`, frontmost Ghos
 
 ## Tasks
 - [x] **T1** Scaffold: SwiftPM package, menu-bar app target, bundling script into `.app` (`LSUIElement`), Accessibility permission check and onboarding prompt, MIT `LICENSE`, `.gitignore`.
-- [ ] **T2** Sentence splitter and `SpeechEngine`. Playback queue with pause/resume, back/forward by sentence, rate change, stop. Unit tests for splitting and queue navigation.
+- [x] **T2** Sentence splitter and `SpeechEngine`. Playback queue with pause/resume, back/forward by sentence, rate change, stop. Unit tests for splitting and queue navigation.
 - [ ] **T3** Floating controller panel wired to `SpeechEngine`.
 - [ ] **T4** `TerminalGridProvider`: mouse → row mapping, paragraph expansion, wrapped-line joining, rect for the highlight. Tests with sanitized fixtures captured from real Ghostty dumps.
 - [ ] **T5** TUI profiles: OpenCode, Claude Code, tmux status bar, plain shell. Detection markers and chrome stripping. Fixture tests per profile.
 - [ ] **T6** Picker mode: global hotkey, overlay highlight following the mouse, click to read, Esc to cancel. **Checkpoint demo with the founder.**
+  - Follow-up from T1 review (R3/R4 warnings): trust polling stops once granted, so a revocation while running leaves the menu saying "Granted". When an AX read fails, re-check `AXIsProcessTrusted()`, update the status and restart polling. Also consider showing only one of the two first-launch dialogs (system prompt and our alert).
 - [ ] **T7** `GenericAXProvider` for Safari and native apps, plus enabling Chrome's AX tree. Record a supported-apps matrix (works / partial / no) in the README.
 - [ ] **T8** Read-selection mode: AX selection first, then the Cmd+C fallback with pasteboard restore. Verify in Ghostty with OpenCode's mouse selection and with tmux.
 - [ ] **T9** Read-all mode (window or page, chrome-stripped).
@@ -118,12 +119,14 @@ Per task: route (inline or delegated, with trigger), commit, checks observed, re
 | Task | Route | Commit | Checks | Review |
 |------|-------|--------|--------|--------|
 | bootstrap | inline (mechanical move) | e0ff76d | structural readback | first boundary (no assess: empty base) |
-| T1 | delegated (writer trigger: 7+ non-trivial files) | see git log (`feat: scaffold menu-bar app`) | `swift build` ok, no warnings; `swift test` 9/9 (RED observed first); `bundle.sh` ok; plist lint ok; `LSUIElement` true; codesign valid | pending assess |
+| T1 | delegated (writer trigger: 7+ non-trivial files) | 421ff25 | `swift build` ok, no warnings; `swift test` 9/9 (RED observed first); `bundle.sh` ok; plist lint ok; `LSUIElement` true; codesign valid | high → granted → 4 lenses approved, acknowledged (boundary 421ff25) |
+| T2 | delegated (writer trigger: 10 non-trivial files; resumed once after an API disconnect) | see git log (`feat: add sentence splitter and playback queue`) | `swift build` 0 warnings; `swift test` 79/79 (RED observed per suite first); `bundle.sh` ok | pending assess |
 
 ## Progress
 - 2026-10-16: The AX feasibility probe on Ghostty is done (see Validated facts).
 - 2026-10-16: Repository initialised (`main`), document moved here, probes moved to `spikes/ax-probes/`, probes re-run (see Re-probe). Environment: macOS 26.2, Swift 6.3.2, Xcode installed.
 - 2026-10-16: T1 done. Targets `HoverTalkCore` (pure, no AppKit, Swift Testing), `HoverTalk` (AppKit executable), `HoverTalkCoreTests`. The working name lives in `AppInfo.name` and the top of `scripts/bundle.sh`. Gotchas: Swift 6 rejects `kAXTrustedCheckOptionPrompt` unless `ApplicationServices` is imported with `@preconcurrency` (kept to one file); the ad-hoc signature changes per build, so macOS may re-ask for Accessibility after rebuilding. Pending manual check: launch the app and confirm the onboarding alert, menu and polling flip to Granted.
+- 2026-10-16: T2 done (~1.4k authored lines, 922 of them tests; over the 400 heuristic because the queue's state × command sequences and the stale-event race tests need it). `PlaybackQueue` is a pure state machine returning `SpeechCommand`s; every utterance has a UUID and stale engine events are ignored (prevents the late didFinish/didCancel double-skip). Rate change while playing re-speaks the rest of the sentence from the last word offset (UTF-16, rounded to a Character boundary). NLTokenizer facts (macOS 26.2): keeps "Dr.", "e.g.", "3.5", "v1.2.3", "Package.swift" intact; does not split "it works. then…" (lowercase after period). Unverified until T3 audio check: `AVSpeechEngine` delegate identity mapping, didCancel after stop, speak right after stop while paused. Product defaults to confirm at the checkpoint: next/previous do nothing while idle; stop resets to sentence 0. Spanish text may get a non-Spanish default voice until T10.
 
 ## Next step
-T2 sentence splitter and `SpeechEngine`.
+T3 floating controller panel wired to `Player`.
