@@ -19,9 +19,25 @@ let package = Package(
             name: "HoverTalk",
             dependencies: ["HoverTalkCore"]
         ),
+        // Development only, never bundled into the app: sanitizes screen captures into
+        // public test fixtures. Rule: Foundation only.
+        .target(
+            name: "HoverTalkFixtureKit"
+        ),
+        // Development only: `swift run HoverTalkCapture` writes sanitized fixtures. Not a declared
+        // product; `scripts/bundle.sh` builds only the `HoverTalk` product, so it is never bundled.
+        .executableTarget(
+            name: "HoverTalkCapture",
+            dependencies: ["HoverTalkFixtureKit"]
+        ),
         .testTarget(
             name: "HoverTalkCoreTests",
-            dependencies: ["HoverTalkCore"]
+            dependencies: ["HoverTalkCore"],
+            resources: [.copy("Fixtures")]
+        ),
+        .testTarget(
+            name: "HoverTalkFixtureKitTests",
+            dependencies: ["HoverTalkFixtureKit"]
         ),
     ]
 )
