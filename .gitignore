@@ -1,0 +1,13 @@
+# SwiftPM and Xcode
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+# The package has no dependencies, so there is nothing to pin.
+Package.resolved
+
+# App bundle output of scripts/bundle.sh
+build/
+
+# Local tooling
+.codegraph/
+.DS_Store

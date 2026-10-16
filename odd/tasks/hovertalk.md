@@ -88,7 +88,7 @@ All three probes re-run from `spikes/ax-probes/`; `trusted=true`, frontmost Ghos
 - **Review (RDD on, global):** after each work-unit commit run `gentle-ai review assess --committed-only` against the last reviewed boundary; the first boundary is the bootstrap commit that adds this document and the probes.
 
 ## Tasks
-- [ ] **T1** Scaffold: SwiftPM package, menu-bar app target, bundling script into `.app` (`LSUIElement`), Accessibility permission check and onboarding prompt, MIT `LICENSE`, `.gitignore`.
+- [x] **T1** Scaffold: SwiftPM package, menu-bar app target, bundling script into `.app` (`LSUIElement`), Accessibility permission check and onboarding prompt, MIT `LICENSE`, `.gitignore`.
 - [ ] **T2** Sentence splitter and `SpeechEngine`. Playback queue with pause/resume, back/forward by sentence, rate change, stop. Unit tests for splitting and queue navigation.
 - [ ] **T3** Floating controller panel wired to `SpeechEngine`.
 - [ ] **T4** `TerminalGridProvider`: mouse → row mapping, paragraph expansion, wrapped-line joining, rect for the highlight. Tests with sanitized fixtures captured from real Ghostty dumps.
@@ -117,11 +117,13 @@ Per task: route (inline or delegated, with trigger), commit, checks observed, re
 
 | Task | Route | Commit | Checks | Review |
 |------|-------|--------|--------|--------|
-| bootstrap | inline (mechanical move) | pending | structural readback | boundary |
+| bootstrap | inline (mechanical move) | e0ff76d | structural readback | first boundary (no assess: empty base) |
+| T1 | delegated (writer trigger: 7+ non-trivial files) | see git log (`feat: scaffold menu-bar app`) | `swift build` ok, no warnings; `swift test` 9/9 (RED observed first); `bundle.sh` ok; plist lint ok; `LSUIElement` true; codesign valid | pending assess |
 
 ## Progress
 - 2026-10-16: The AX feasibility probe on Ghostty is done (see Validated facts).
 - 2026-10-16: Repository initialised (`main`), document moved here, probes moved to `spikes/ax-probes/`, probes re-run (see Re-probe). Environment: macOS 26.2, Swift 6.3.2, Xcode installed.
+- 2026-10-16: T1 done. Targets `HoverTalkCore` (pure, no AppKit, Swift Testing), `HoverTalk` (AppKit executable), `HoverTalkCoreTests`. The working name lives in `AppInfo.name` and the top of `scripts/bundle.sh`. Gotchas: Swift 6 rejects `kAXTrustedCheckOptionPrompt` unless `ApplicationServices` is imported with `@preconcurrency` (kept to one file); the ad-hoc signature changes per build, so macOS may re-ask for Accessibility after rebuilding. Pending manual check: launch the app and confirm the onboarding alert, menu and polling flip to Granted.
 
 ## Next step
-T1 scaffold.
+T2 sentence splitter and `SpeechEngine`.
