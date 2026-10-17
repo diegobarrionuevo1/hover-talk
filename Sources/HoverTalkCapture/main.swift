@@ -3,7 +3,7 @@ import HoverTalkFixtureKit
 
 // Development tool that writes sanitized screen fixtures. Raw captured text is never written
 // or printed: it is sanitized and checked by `FixtureExport.prepare` first, and only the
-// sanitized summary reaches stdout.
+// sanitized summary reaches stdout. `probe` prints structure only (see `Probe`).
 
 let usage = """
     Usage:
@@ -11,13 +11,17 @@ let usage = """
           Frontmost app's focused AXTextArea (fallback: the element under the mouse).
       HoverTalkCapture tmux-pane <target> --out <path>
           One tmux pane via `tmux capture-pane -p -t <target>`.
-    Exit status: 0 written, 1 capture or write failed, 2 usage error,
+      HoverTalkCapture probe [--delay <seconds>]
+          Runs the picker's reading pipeline on the element under the mouse and prints its
+          structure only (role, frame, grid, panes, profile, block geometry and counts).
+    Exit status: 0 written or probed, 1 capture or write failed, 2 usage error,
     3 refused (a sensitive term survived sanitizing; nothing written).
     """
 
 enum Command {
     case ax(out: String, delay: Double)
     case tmuxPane(target: String, out: String)
+    case probe(delay: Double)
 }
 
 func parse(_ arguments: [String]) -> Command? {
@@ -34,6 +38,11 @@ func parse(_ arguments: [String]) -> Command? {
             positional.append(argument)
             index += 1
         }
+    }
+    if positional == ["probe"] {
+        let delay = options.removeValue(forKey: "--delay").map { Double($0) } ?? 0
+        guard let delay, delay >= 0, options.isEmpty else { return nil }
+        return .probe(delay: delay)
     }
     guard let out = options.removeValue(forKey: "--out") else { return nil }
     if positional == ["ax"] {
@@ -59,6 +68,9 @@ guard let command = parse(Array(CommandLine.arguments.dropFirst())) else {
 let raw: ScreenFixture
 let outPath: String
 switch command {
+case let .probe(delay):
+    if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+    exit(Probe.run())
 case let .ax(out, delay):
     outPath = out
     if delay > 0 { Thread.sleep(forTimeInterval: delay) }

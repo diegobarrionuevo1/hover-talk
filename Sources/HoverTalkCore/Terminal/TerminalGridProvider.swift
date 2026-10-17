@@ -35,13 +35,16 @@ public enum TerminalGridProvider {
     /// first, so the previous item ends there. A row starting with a code fence (```) and the
     /// row after it also start new lines, so `TextCleaner` sees whole fence lines. Whitespace
     /// runs inside a row become one space.
+    ///
+    /// Parses the whole screen on every call; use `ParsedScreen` or `ScreenBlockCache` to look
+    /// up several points on the same screen.
     public static func block(
         at point: CGPoint,
         frame: CGRect,
         lines: [String],
         registry: TUIProfileRegistry = .standard
     ) -> TerminalTextBlock? {
-        block(at: point, frame: frame, lines: lines) { registry.profile(for: $0) }
+        ParsedScreen(lines: lines, frame: frame, registry: registry).block(at: point)
     }
 
     /// As `block(at:frame:lines:registry:)`, but reads every pane with `profile`.
@@ -51,75 +54,14 @@ public enum TerminalGridProvider {
         lines: [String],
         profile: any TUIProfile
     ) -> TerminalTextBlock? {
-        block(at: point, frame: frame, lines: lines) { _ in profile }
+        ParsedScreen(lines: lines, frame: frame, profile: profile).block(at: point)
     }
 
-    /// A content row: its collapsed text and the screen columns the profile reads it from.
-    private struct ReadRow {
-        let text: String
-        let columns: ClosedRange<Int>
-    }
-
-    private static func block(
-        at point: CGPoint,
-        frame: CGRect,
-        lines: [String],
-        profileForPane: ([String]) -> any TUIProfile
-    ) -> TerminalTextBlock? {
-        let grid = TerminalGrid(lines: lines)
-        let geometry = TerminalGeometry(frame: frame, rows: grid.rowCount, columns: grid.columns)
-        guard let cell = geometry.cell(at: point),
-              let classified = PaneLayout.classify(grid).first(where: { $0.pane.contains(cell) }),
-              classified.kind == .program
-        else { return nil }
-
-        let pane = classified.pane
-        let paneLines = pane.rows.map { grid.text(row: $0, in: pane.columns) }
-        let roles = profileForPane(paneLines).roles(ofPane: paneLines)
-        let readRows: [ReadRow?] = paneLines.indices.map { index in
-            // Defensive: a profile that returns fewer roles than rows leaves the rest unread.
-            guard roles.indices.contains(index), case let .content(content, columns) = roles[index] else { return nil }
-            let text = collapsingWhitespace(content)
-            guard !text.isEmpty, let screenColumns = screenColumns(columns, in: pane) else { return nil }
-            return ReadRow(text: text, columns: screenColumns)
-        }
-        let pointed = cell.row - pane.rows.lowerBound
-        guard let pointedRow = readRows[pointed], pointedRow.columns.contains(cell.column) else { return nil }
-
-        var first = pointed
-        var last = pointed
-        while first > 0, readRows[first - 1] != nil { first -= 1 }
-        while last < readRows.count - 1, readRows[last + 1] != nil { last += 1 }
-        let rows = (pane.rows.lowerBound + first)...(pane.rows.lowerBound + last)
-        let paragraph = readRows[first...last].compactMap { $0 }
-
-        let spans = zip(rows, paragraph).compactMap { grid.contentColumns(row: $0, in: $1.columns) }
-        // Defensive: the bundled profiles take their text from these cells, so a non-blank
-        // content row has a non-blank cell; a profile that invents text could break that.
-        guard let left = spans.map(\.lowerBound).min(), let right = spans.map(\.upperBound).max() else { return nil }
-        let columns = left...right
-
-        return TerminalTextBlock(
-            text: joined(paragraph.map(\.text)),
-            rows: rows,
-            columns: columns,
-            rect: geometry.rect(rows: rows, columns: columns)
-        )
-    }
-
-    /// A role's pane-relative columns on screen, clamped to the pane; the whole pane for `nil`.
-    private static func screenColumns(_ columns: ClosedRange<Int>?, in pane: Pane) -> ClosedRange<Int>? {
-        guard let columns else { return pane.columns }
-        let lower = max(pane.columns.lowerBound + columns.lowerBound, pane.columns.lowerBound)
-        let upper = min(pane.columns.lowerBound + columns.upperBound, pane.columns.upperBound)
-        return lower <= upper ? lower...upper : nil
-    }
-
-    private static func collapsingWhitespace(_ row: String) -> String {
+    static func collapsingWhitespace(_ row: String) -> String {
         row.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
-    private static func joined(_ rows: [String]) -> String {
+    static func joined(_ rows: [String]) -> String {
         var text = ""
         for (index, row) in rows.enumerated() {
             if index > 0 {

@@ -17,21 +17,23 @@ struct AccessibilityStatusTests {
 
 @Suite("AccessibilityPresenter")
 struct AccessibilityPresenterTests {
-    @Test("Granted status shows the granted title, no onboarding, and stops polling")
+    @Test("Granted status shows an inert granted title, asks for no prompt, and stops polling")
     func grantedPresentation() {
         let presentation = AccessibilityPresenter.presentation(for: .granted)
 
         #expect(presentation.statusTitle == "Accessibility: Granted")
-        #expect(presentation.showsOnboarding == false)
+        #expect(presentation.statusOpensExplanation == false)
+        #expect(presentation.requestsSystemPrompt == false)
         #expect(presentation.keepsPolling == false)
     }
 
-    @Test("Not granted status shows the not-granted title, onboarding, and keeps polling")
+    @Test("Not granted status offers the explanation from the status line, asks for the system prompt only, and keeps polling")
     func notGrantedPresentation() {
         let presentation = AccessibilityPresenter.presentation(for: .notGranted)
 
-        #expect(presentation.statusTitle == "Accessibility: Not granted")
-        #expect(presentation.showsOnboarding == true)
+        #expect(presentation.statusTitle == "Accessibility: Not granted — Open Settings…")
+        #expect(presentation.statusOpensExplanation == true)
+        #expect(presentation.requestsSystemPrompt == true)
         #expect(presentation.keepsPolling == true)
     }
 
@@ -59,6 +61,18 @@ struct AppCopyTests {
     @Test("The open-settings menu title ends with an ellipsis")
     func openSettingsTitle() {
         #expect(AppCopy.openSettingsMenuTitle == "Open Accessibility Settings…")
+    }
+
+    @Test("The picker menu item shows its hotkey after two spaces, or no hotkey when it could not be registered")
+    func pickTextTitle() {
+        #expect(AppCopy.pickTextMenuTitle(for: .pickText) == "Pick Text to Read  ⌃⌥R")
+        #expect(AppCopy.pickTextMenuTitle(for: nil) == "Pick Text to Read")
+    }
+
+    @Test("The picker's permission message says where to grant it and how to fix an outdated grant")
+    func pickerNeedsAccessibilityCopy() {
+        #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("Privacy & Security > Accessibility"))
+        #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("turn it off and on again"))
     }
 
     @Test("Onboarding names the app, explains the purpose, and states that nothing leaves the Mac")

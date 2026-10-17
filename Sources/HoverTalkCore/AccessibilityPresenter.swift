@@ -12,16 +12,21 @@ public enum AccessibilityStatus: Equatable, Sendable {
 
 /// What the menu-bar app shows and does for a given permission status.
 public struct AccessibilityPresentation: Equatable, Sendable {
-    /// Title of the disabled status line in the menu.
+    /// Title of the status line in the menu.
     public let statusTitle: String
-    /// Whether the onboarding prompt must be shown.
-    public let showsOnboarding: Bool
+    /// Whether the status line is enabled and opens the app's explanation of the permission.
+    public let statusOpensExplanation: Bool
+    /// Whether to ask macOS for its permission prompt at launch. The app's own explanation is
+    /// not shown at launch, so a first launch shows one dialog; it stays one click away in the
+    /// status line (`statusOpensExplanation`).
+    public let requestsSystemPrompt: Bool
     /// Whether the app must keep polling for trust until the permission is granted.
     public let keepsPolling: Bool
 
-    public init(statusTitle: String, showsOnboarding: Bool, keepsPolling: Bool) {
+    public init(statusTitle: String, statusOpensExplanation: Bool, requestsSystemPrompt: Bool, keepsPolling: Bool) {
         self.statusTitle = statusTitle
-        self.showsOnboarding = showsOnboarding
+        self.statusOpensExplanation = statusOpensExplanation
+        self.requestsSystemPrompt = requestsSystemPrompt
         self.keepsPolling = keepsPolling
     }
 }
@@ -37,13 +42,15 @@ public enum AccessibilityPresenter {
         case .granted:
             AccessibilityPresentation(
                 statusTitle: "Accessibility: Granted",
-                showsOnboarding: false,
+                statusOpensExplanation: false,
+                requestsSystemPrompt: false,
                 keepsPolling: false
             )
         case .notGranted:
             AccessibilityPresentation(
-                statusTitle: "Accessibility: Not granted",
-                showsOnboarding: true,
+                statusTitle: "Accessibility: Not granted — Open Settings…",
+                statusOpensExplanation: true,
+                requestsSystemPrompt: true,
                 keepsPolling: true
             )
         }

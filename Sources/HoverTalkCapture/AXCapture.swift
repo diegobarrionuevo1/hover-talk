@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import HoverTalkCore
 import HoverTalkFixtureKit
 
 /// Reads the frontmost app's text area through Accessibility. The raw text stays in memory;
@@ -37,7 +38,9 @@ enum AXCapture {
             throw .noTextArea(app: appName, focusedRole: role(of: focused), hoveredRole: role(of: hovered))
         }
         guard let frame = frame(of: textArea) else { throw .noFrame }
-        return ScreenFixture(frame: frame, lines: ScreenFixture.lines(fromAXValue: value))
+        // The rows the app parses: also split after soft-wrapped rows, which Ghostty's value
+        // does not end with `\n`.
+        return ScreenFixture(frame: frame, lines: AXScreenRows.split(value))
     }
 
     private static func attribute(of element: AXUIElement, _ name: String) -> CFTypeRef? {

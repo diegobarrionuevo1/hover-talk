@@ -24,11 +24,13 @@ let package = Package(
         .target(
             name: "HoverTalkFixtureKit"
         ),
-        // Development only: `swift run HoverTalkCapture` writes sanitized fixtures. Not a declared
-        // product; `scripts/bundle.sh` builds only the `HoverTalk` product, so it is never bundled.
+        // Development only: `swift run HoverTalkCapture` writes sanitized fixtures, and its
+        // `probe` command runs the app's reading pipeline from `HoverTalkCore` on the live screen.
+        // Not a declared product; `scripts/bundle.sh` builds only the `HoverTalk` product, so it
+        // is never bundled.
         .executableTarget(
             name: "HoverTalkCapture",
-            dependencies: ["HoverTalkFixtureKit"]
+            dependencies: ["HoverTalkFixtureKit", "HoverTalkCore"]
         ),
         .testTarget(
             name: "HoverTalkCoreTests",

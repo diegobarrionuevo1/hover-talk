@@ -4,27 +4,43 @@ import HoverTalkCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let trustPollInterval: TimeInterval = 2
+    /// The longest any AX call may wait for an app, so a hung app cannot stall the picker.
+    private static let axMessagingTimeout: Float = 0.25
 
     private var statusItem: NSStatusItem?
     private let statusMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private var trustPollTimer: Timer?
     private var readingSession: ReadingSession?
+    private var picker: PickerController?
+    private var pickerHotkey: GlobalHotkey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        readingSession = ReadingSession(player: Player(engine: AVSpeechEngine()), controller: ControllerPanel())
+        TerminalAXSource.setMessagingTimeout(seconds: Self.axMessagingTimeout)
+
+        let session = ReadingSession(player: Player(engine: AVSpeechEngine()), controller: ControllerPanel())
+        readingSession = session
+        let picker = PickerController(readingSession: session)
+        picker.onNeedsAccessibility = { [weak self] in
+            self?.pickerNeedsAccessibility()
+        }
+        self.picker = picker
+        pickerHotkey = GlobalHotkey(.pickText) { [weak self] in
+            self?.picker?.toggle()
+        }
+
         installStatusItem()
 
         let presentation = AccessibilityPresenter.presentation(for: AccessibilityPermission.currentStatus())
         apply(presentation)
-
-        if presentation.showsOnboarding {
+        // Only the system prompt at launch; the app's explanation stays in the status line.
+        if presentation.requestsSystemPrompt {
             AccessibilityPermission.requestWithSystemPrompt()
-            showOnboardingAlert()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         stopPolling()
+        pickerHotkey?.unregister()
     }
 
     // MARK: - Status item and menu
@@ -39,10 +55,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menu = NSMenu()
-        // Without auto-enabling, the status line stays disabled and the other items keep
-        // their default enabled state.
+        // Without auto-enabling, `apply(_:)` decides whether the status line is enabled and the
+        // other items keep their default enabled state.
         menu.autoenablesItems = false
 
+        let pickItem = NSMenuItem(
+            title: AppCopy.pickTextMenuTitle(for: pickerHotkey == nil ? nil : .pickText),
+            action: #selector(pickText),
+            keyEquivalent: ""
+        )
+        pickItem.target = self
+        menu.addItem(pickItem)
+        menu.addItem(.separator())
+
+        statusMenuItem.target = self
+        statusMenuItem.action = #selector(showAccessibilityExplanation)
         statusMenuItem.isEnabled = false
         menu.addItem(statusMenuItem)
 
@@ -55,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(openSettingsItem)
 
         #if DEBUG
-        // Manual audio and controller check until a text provider exists. Not in release builds.
+        // Manual audio and controller check without a text provider. Not in release builds.
         let readClipboardItem = NSMenuItem(title: "Read Clipboard", action: #selector(readClipboard), keyEquivalent: "")
         readClipboardItem.target = self
         menu.addItem(readClipboardItem)
@@ -77,11 +104,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func apply(_ presentation: AccessibilityPresentation) {
         statusMenuItem.title = presentation.statusTitle
+        statusMenuItem.isEnabled = presentation.statusOpensExplanation
         if presentation.keepsPolling {
             startPolling()
         } else {
             stopPolling()
         }
+    }
+
+    @objc private func pickText() {
+        picker?.toggle()
     }
 
     // MARK: - Trust polling
@@ -91,12 +123,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let timer = Timer(timeInterval: Self.trustPollInterval, repeats: true) { [weak self] _ in
             // The timer is added to the main run loop below, so the block runs on the main thread.
             MainActor.assumeIsolated {
-                self?.pollTrust()
+                self?.recheckTrust()
             }
         }
         timer.tolerance = 0.5
-        // `.common` keeps the timer firing while the status menu (event-tracking mode) or the
-        // onboarding alert (modal-panel mode) is open.
+        // `.common` keeps the timer firing while the status menu (event-tracking mode) or an
+        // alert (modal-panel mode) is open.
         RunLoop.main.add(timer, forMode: .common)
         trustPollTimer = timer
     }
@@ -106,17 +138,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trustPollTimer = nil
     }
 
-    private func pollTrust() {
+    /// Polling stops once trust is granted, so a later revocation is only noticed when an AX
+    /// read or the picker's input capture fails; this re-check then updates the status line
+    /// and restarts polling.
+    private func recheckTrust() {
         apply(AccessibilityPresenter.presentation(for: AccessibilityPermission.currentStatus()))
     }
 
-    // MARK: - Onboarding
+    private func pickerNeedsAccessibility() {
+        recheckTrust()
+        // Shown from a later main-actor turn: this may run inside the hotkey's Carbon event
+        // handler, and the alert runs a modal loop until it is dismissed.
+        Task { @MainActor [weak self] in
+            self?.showAccessibilityAlert(message: AppCopy.pickerNeedsAccessibilityMessage)
+        }
+    }
 
-    private func showOnboardingAlert() {
+    // MARK: - Explanation
+
+    @objc private func showAccessibilityExplanation() {
+        showAccessibilityAlert(message: AppCopy.onboardingMessage)
+    }
+
+    private func showAccessibilityAlert(message: String) {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = AppCopy.onboardingTitle
-        alert.informativeText = AppCopy.onboardingMessage
+        alert.informativeText = message
         alert.addButton(withTitle: AppCopy.onboardingOpenSettingsButton)
         alert.addButton(withTitle: AppCopy.onboardingLaterButton)
 
