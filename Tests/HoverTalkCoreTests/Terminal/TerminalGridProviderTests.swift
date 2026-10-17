@@ -13,6 +13,17 @@ private struct GutterTestProfile: TUIProfile {
     }
 }
 
+/// Reads only cells 3...7 of every row, as a profile cutting a gutter and a sidebar does.
+private struct WindowTestProfile: TUIProfile {
+    func matches(paneLines: [String]) -> Bool { true }
+
+    func role(of row: String) -> LineRole {
+        let cells = Array(row)
+        guard cells.count > 3 else { return .content("") }
+        return .content(String(cells[3..<min(8, cells.count)]), columns: 3...7)
+    }
+}
+
 @Suite("TerminalGridProvider")
 struct TerminalGridProviderTests {
     /// Synthetic screens get a frame of 10 × 20 points per cell at the origin.
@@ -65,6 +76,13 @@ struct TerminalGridProviderTests {
 
         #expect(block(lines, row: 0, column: 0)?.text
             == "run it with -v for details rose by 1.5 percent **bold** too ab) not one 1234. nor this")
+    }
+
+    @Test("A row starting with a code fence, and the row after it, start new lines, so TextCleaner sees whole fence lines")
+    func codeFencesStartNewLines() {
+        let lines = ["Run this:", "```sh", "swift test", "```", "and wait."]
+
+        #expect(block(lines, row: 0, column: 0)?.text == "Run this:\n```sh\nswift test\n```\nand wait.")
     }
 
     @Test("Pointing at a blank row, or outside the frame, gives no block")
@@ -120,6 +138,21 @@ struct TerminalGridProviderTests {
         #expect(block(lines, row: 3, column: 4, profile: profile)?.text == "three")
     }
 
+    @Test("A content role's columns bound both the pointer and the highlight")
+    func contentColumnsBoundPointerAndHighlight() {
+        // Cells: | 0, text 3...7, "side" 10...13.
+        let lines = ["|  alpha  side", "|  beta   side"]
+        let profile = WindowTestProfile()
+        let result = block(lines, row: 0, column: 4, profile: profile)
+
+        #expect(result?.text == "alpha beta")
+        #expect(result?.columns == 3...7)
+        #expect(result?.rect == CGRect(x: 30, y: 0, width: 50, height: 40))
+        #expect(block(lines, row: 1, column: 7, profile: profile)?.rows == 0...1)
+        #expect(block(lines, row: 0, column: 11, profile: profile) == nil)
+        #expect(block(lines, row: 0, column: 0, profile: profile) == nil)
+    }
+
     // MARK: Fixtures
 
     private struct VSplit {
@@ -135,12 +168,14 @@ struct TerminalGridProviderTests {
             cellHeight = frame.height / 51
         }
 
+        /// With the plain profile on every pane, so these tests cover pane mapping alone;
+        /// `ProfiledReadingTests` covers the profiles the registry picks.
         func block(row: Int, column: Int) -> TerminalTextBlock? {
             let point = CGPoint(
                 x: frame.minX + (CGFloat(column) + 0.5) * cellWidth,
                 y: frame.minY + (CGFloat(row) + 0.5) * cellHeight
             )
-            return TerminalGridProvider.block(at: point, frame: frame, lines: fixture.lines)
+            return TerminalGridProvider.block(at: point, frame: frame, lines: fixture.lines, profile: PlainTerminalProfile())
         }
     }
 
@@ -195,11 +230,12 @@ struct TerminalGridProviderTests {
         #expect(screen.block(row: 20, column: 273) == nil)
     }
 
-    @Test("vsplit: the tmux status row is its own pane and never joins the pane below")
+    @Test("vsplit: the tmux status row is never read, whatever the profile, and never joins the pane below")
     func vsplitStatusRow() throws {
         let screen = try VSplit()
 
-        #expect(screen.block(row: 0, column: 10)?.rows == 0...0)
+        #expect(screen.block(row: 0, column: 10) == nil)
+        #expect(screen.block(row: 0, column: 250) == nil)
         #expect(screen.block(row: 1, column: 10)?.rows.lowerBound == 1)
     }
 

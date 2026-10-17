@@ -1,6 +1,6 @@
 # Screen fixtures
 
-Real terminal screens, sanitized, for testing the text providers. Each file is JSON:
+Terminal screens for testing the text providers: real ones, sanitized, and hand-written synthetic ones (see "Synthetic fixtures"). Each file is JSON:
 
 - `frame`: the `AXTextArea` frame in AX coordinates (top-left origin), or `null` when the source has no frame.
 - `lines`: the screen text, one string per row.
@@ -33,6 +33,10 @@ Implemented in `Sources/HoverTalkFixtureKit`, tested in `Tests/HoverTalkFixtureK
 - The raw capture is never written or printed; the tool prints only a sanitized summary.
 
 Line count, line lengths, layout and glyphs are real; the words and numbers are not. Allowlisted words that also occur in ordinary prose stay readable.
+
+## Synthetic fixtures
+
+- `synthetic-claude-code.json` is hand-written, not captured: a Claude Code screen modelled on its well-known layout (welcome and input boxes, `⏺` messages and tool calls, `⎿` results, hint rows), with neutral made-up text and `frame: null`. It has not been checked against a live capture yet; replace it with a sanitized capture when one exists. Its rows carry no trailing spaces.
 
 ## Adding a fixture
 

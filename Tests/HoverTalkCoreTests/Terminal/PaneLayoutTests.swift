@@ -115,5 +115,50 @@ struct PaneLayoutTests {
     func emptyScreen() {
         #expect(panes([]) == [])
         #expect(panes([""]) == [])
+        #expect(PaneLayout.classify(TerminalGrid(lines: [])) == [])
+    }
+
+    // MARK: Classification
+
+    @Test("The vsplit's peeled status row is tmux status; the panes below it are programs")
+    func classifyVsplit() throws {
+        let grid = TerminalGrid(lines: try ScreenFixture.load(VSplitPanes.name).lines)
+
+        #expect(PaneLayout.classify(grid) == [
+            ClassifiedPane(pane: Pane(rows: 0...0, columns: 0...272), kind: .tmuxStatus),
+            ClassifiedPane(pane: Pane(rows: 1...50, columns: VSplitPanes.left), kind: .program),
+            ClassifiedPane(pane: Pane(rows: 1...50, columns: VSplitPanes.right), kind: .program),
+        ])
+    }
+
+    @Test("A full-width row peeled off the bottom is tmux status; an unsplit screen is one program pane")
+    func classifyBottomStatusAndFish() throws {
+        let fish = TerminalGrid(lines: try ScreenFixture.load("plain-shell-fish").lines)
+
+        #expect(PaneLayout.classify(TerminalGrid(lines: ["aa│bb", "aa│bb", "[0] status"])).map(\.kind) == [.program, .program, .tmuxStatus])
+        #expect(PaneLayout.classify(fish) == [ClassifiedPane(pane: Pane(rows: 0...43, columns: 0...103), kind: .program)])
+    }
+
+    @Test("A row peeled inside a pane, not across the whole screen, stays a program pane")
+    func peeledRowInsideAPane() {
+        let lines = [
+            "aa│title",
+            "aa│b│cc",
+            "aa│b│cc",
+        ]
+
+        #expect(PaneLayout.classify(TerminalGrid(lines: lines)) == [
+            ClassifiedPane(pane: Pane(rows: 0...2, columns: 0...1), kind: .program),
+            ClassifiedPane(pane: Pane(rows: 0...0, columns: 3...7), kind: .program),
+            ClassifiedPane(pane: Pane(rows: 1...2, columns: 3...3), kind: .program),
+            ClassifiedPane(pane: Pane(rows: 1...2, columns: 5...7), kind: .program),
+        ])
+    }
+
+    @Test("Claude Code's box │ rows are not a divider: the synthetic Claude Code screen is one pane")
+    func claudeCodeBoxIsNotADivider() throws {
+        let grid = TerminalGrid(lines: try ScreenFixture.load("synthetic-claude-code").lines)
+
+        #expect(PaneLayout.detect(grid) == [Pane(rows: 0...30, columns: 0...63)])
     }
 }
