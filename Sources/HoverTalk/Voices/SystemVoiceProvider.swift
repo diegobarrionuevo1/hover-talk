@@ -13,18 +13,39 @@ final class SystemVoiceProvider {
     private(set) var voices: [VoiceDescriptor] = []
     /// Kept for the app's lifetime; the block holds the provider weakly.
     private var observer: (any NSObjectProtocol)?
+    /// True while a coalesced refresh is scheduled on the main queue.
+    private var refreshScheduled = false
 
     init() {
         refresh()
+        // `queue: nil` runs the block synchronously on the posting thread. That thread belongs to
+        // AVFoundation, and with `queue: .main` it waited for the main-queue block to finish while
+        // that block's `speechVoices()` call waited on a lock the posting thread held: a deadlock
+        // that froze the whole app (sampled 2026-10-20). The block therefore only schedules an
+        // asynchronous refresh and returns at once, so the poster is never blocked.
         observer = NotificationCenter.default.addObserver(
             forName: AVSpeechSynthesizer.availableVoicesDidChangeNotification,
             object: nil,
-            queue: .main
+            queue: nil
         ) { [weak self] _ in
-            // `queue: .main` runs the block on the main queue.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.scheduleRefresh()
+                }
+            }
+        }
+    }
+
+    /// Coalesces bursts of change notifications into one refresh shortly after the last one.
+    private func scheduleRefresh() {
+        guard !refreshScheduled else { return }
+        refreshScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             MainActor.assumeIsolated {
-                self?.refresh()
-                self?.onChange?()
+                guard let self else { return }
+                self.refreshScheduled = false
+                self.refresh()
+                self.onChange?()
             }
         }
     }

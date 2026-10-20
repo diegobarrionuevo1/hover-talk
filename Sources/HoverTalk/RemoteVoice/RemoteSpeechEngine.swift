@@ -57,11 +57,15 @@ final class RemoteSpeechEngine: SpeechEngine {
         configurationObserver = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange,
             object: audioEngine,
-            queue: .main
+            queue: nil
         ) { [weak self] _ in
-            // `queue: .main` runs the block on the main queue.
-            MainActor.assumeIsolated {
-                self?.audioConfigurationChanged()
+            // AVFoundation posts this on an internal thread. `queue: nil` plus an asynchronous hop
+            // never blocks that thread on the main queue, which avoids the poster/main deadlock
+            // seen with `availableVoicesDidChangeNotification` (see SystemVoiceProvider).
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.audioConfigurationChanged()
+                }
             }
         }
     }
