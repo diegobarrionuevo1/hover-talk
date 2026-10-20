@@ -1,7 +1,10 @@
-/// Which voice reads: one the user chose, or the best voice for each text's language.
+/// Which voice reads: one the user chose, or the best voice for each text's language. Used for
+/// system voices (`Preferences.voiceSelection`) and for the voice server's voices
+/// (`RemoteVoiceServerConfig.voice`).
 public enum VoiceSelection: Equatable, Hashable, Sendable {
-    /// The best installed voice for the language detected in the text being read
-    /// (`VoiceCatalog.resolve(_:textLanguage:)`).
+    /// The best voice for the language detected in the text being read
+    /// (`VoiceCatalog.resolve(_:textLanguage:)` for system voices,
+    /// `RemoteVoiceCatalog.resolve(_:textLanguage:)` for server voices).
     case automatic
     /// The voice with this `VoiceDescriptor.id`.
     case voice(id: String)

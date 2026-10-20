@@ -14,6 +14,8 @@ public enum SpeechCommand: Equatable, Sendable {
     case pause
     case resume
     case stop
+    /// Change the current utterance's rate in place; emitted only with `supportsLiveRate`.
+    case setRate(SpeechRate)
 }
 
 /// Sentence-by-sentence playback as a pure state machine.
@@ -22,9 +24,9 @@ public enum SpeechCommand: Equatable, Sendable {
 /// The queue never talks to an engine itself, so its behavior is testable without audio.
 ///
 /// Each `speak` command carries a fresh utterance ID, and `handle(_:)` ignores events whose
-/// ID is not the current one. A late `.finished` or `.cancelled` from an utterance that was
-/// stopped by a skip, a rate change or a voice change therefore cannot move the cursor a
-/// second time.
+/// ID is not the current one. A late `.finished`, `.cancelled` or `.failed` from an utterance
+/// that was stopped by a skip, a rate change (without live rate) or a voice change therefore
+/// cannot move the cursor a second time or pause the utterance that replaced it.
 public struct PlaybackQueue: Equatable, Sendable {
     public private(set) var sentences: [String] = []
     public private(set) var currentIndex = 0
@@ -33,7 +35,8 @@ public struct PlaybackQueue: Equatable, Sendable {
     /// The voice every `speak` command carries; nil for the engine's default voice.
     public private(set) var voice: VoiceDescriptor?
     /// The utterance the engine holds for the current sentence, or nil when it holds none
-    /// (for example when idle, finished, or paused after a skip, a rate or a voice change).
+    /// (for example when idle, finished, or paused after a skip, a voice change, or a rate change
+    /// without live rate).
     public private(set) var currentUtteranceID: UUID?
     /// UTF-16 offset, within the current sentence, of the last word the engine reported.
     public private(set) var characterOffset = 0
@@ -44,9 +47,15 @@ public struct PlaybackQueue: Equatable, Sendable {
     /// UTF-16 length of the current utterance's text; progress offsets must be below it.
     private var utteranceLength = 0
 
-    public init(rate: SpeechRate = .default, voice: VoiceDescriptor? = nil) {
+    /// Whether the engine changes the rate of an utterance in place (`SpeechEngine.supportsLiveRate`).
+    /// When true, a rate change emits `.setRate` and keeps the utterance; when false it stops the
+    /// utterance and speaks the rest of the sentence again.
+    public var supportsLiveRate: Bool
+
+    public init(rate: SpeechRate = .default, voice: VoiceDescriptor? = nil, supportsLiveRate: Bool = false) {
         self.rate = rate
         self.voice = voice
+        self.supportsLiveRate = supportsLiveRate
     }
 
     public var currentSentence: String? {
@@ -127,12 +136,16 @@ public struct PlaybackQueue: Equatable, Sendable {
         return commands
     }
 
-    /// Stores the rate. While playing, the rest of the current sentence is spoken again at the
-    /// new rate right away; while paused, the held utterance is dropped so resume does that.
+    /// Stores the rate. With live rate, the held utterance, playing or paused, takes the new rate
+    /// in place. Without it: while playing, the rest of the current sentence is spoken again at
+    /// the new rate right away; while paused, the held utterance is dropped so resume does that.
     public mutating func setRate(_ newRate: SpeechRate) -> [SpeechCommand] {
         guard newRate != rate else { return [] }
         rate = newRate
         guard currentUtteranceID != nil else { return [] }
+        if supportsLiveRate {
+            return [.setRate(newRate)]
+        }
         var commands = releaseUtterance()
         if status == .playing {
             commands.append(speakCurrentSentence(fromUTF16Offset: characterOffset))
@@ -193,10 +206,11 @@ public struct PlaybackQueue: Equatable, Sendable {
             moveTo(currentIndex + 1)
             // A finish that raced with pause() moves the cursor; resume() speaks the sentence.
             return status == .playing ? [speakCurrentSentence(fromUTF16Offset: 0)] : []
-        case .cancelled:
-            // Defensive: every `.stop` this queue emits clears `currentUtteranceID` first
-            // (`releaseUtterance()`, `stop()`), so a cancel that still matches came from outside
-            // the queue. Pause so resume() can speak the rest of the sentence.
+        case .cancelled, .failed:
+            // For `.cancelled` this is defensive: every `.stop` this queue emits clears
+            // `currentUtteranceID` first (`releaseUtterance()`, `stop()`), so a cancel that still
+            // matches came from outside the queue. A `.failed` is the engine giving up on the
+            // utterance. Either way pause, so resume() can speak the rest of the sentence.
             currentUtteranceID = nil
             if status == .playing {
                 status = .paused

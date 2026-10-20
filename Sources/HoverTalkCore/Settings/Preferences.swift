@@ -54,4 +54,26 @@ public final class Preferences {
         get { storage.string(forKey: Self.speechRateKey).flatMap(Double.init).map(SpeechRate.init) ?? .default }
         set { storage.setString(String(newValue.multiplier), forKey: Self.speechRateKey) }
     }
+
+    public static let remoteVoiceEnabledKey = "remoteVoiceEnabled"
+    public static let remoteVoiceURLKey = "remoteVoiceURL"
+    public static let remoteVoiceSelectionKey = "remoteVoiceSelection"
+
+    /// Stored under three keys: "true" or "false", the base URL's text ("" for no address), and
+    /// the server voice as `VoiceSelection.storedValue`. Anything but "true" reads as off, and a
+    /// stored URL that no longer validates reads as no address.
+    public var remoteVoiceServer: RemoteVoiceServerConfig {
+        get {
+            RemoteVoiceServerConfig(
+                enabled: storage.string(forKey: Self.remoteVoiceEnabledKey) == "true",
+                address: storage.string(forKey: Self.remoteVoiceURLKey).flatMap { try? RemoteVoiceServerAddress(validating: $0) },
+                voice: VoiceSelection(storedValue: storage.string(forKey: Self.remoteVoiceSelectionKey))
+            )
+        }
+        set {
+            storage.setString(newValue.enabled ? "true" : "false", forKey: Self.remoteVoiceEnabledKey)
+            storage.setString(newValue.address?.baseURL.absoluteString ?? "", forKey: Self.remoteVoiceURLKey)
+            storage.setString(newValue.voice.storedValue, forKey: Self.remoteVoiceSelectionKey)
+        }
+    }
 }

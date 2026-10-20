@@ -2,48 +2,6 @@ import Foundation
 import Testing
 @testable import HoverTalkCore
 
-/// Records every call and lets the test emit engine events.
-@MainActor
-private final class FakeSpeechEngine: SpeechEngine {
-    enum Call: Equatable {
-        case speak(text: String, rate: SpeechRate, voice: VoiceDescriptor? = nil, utteranceID: UUID)
-        case pause
-        case resume
-        case stop
-    }
-
-    var onEvent: ((SpeechEngineEvent) -> Void)?
-    private(set) var calls: [Call] = []
-
-    var lastSpokenID: UUID? {
-        for call in calls.reversed() {
-            if case .speak(_, _, _, let id) = call { return id }
-        }
-        return nil
-    }
-
-    var spokenTexts: [String] {
-        calls.compactMap { call in
-            if case .speak(let text, _, _, _) = call { return text }
-            return nil
-        }
-    }
-
-    func speak(_ text: String, rate: SpeechRate, voice: VoiceDescriptor?, utteranceID: UUID) {
-        calls.append(.speak(text: text, rate: rate, voice: voice, utteranceID: utteranceID))
-    }
-
-    func pause() { calls.append(.pause) }
-    func resume() { calls.append(.resume) }
-    func stop() { calls.append(.stop) }
-
-    func emit(_ kind: SpeechEngineEvent.Kind, for id: UUID?) {
-        onEvent?(SpeechEngineEvent(utteranceID: id ?? UUID(), kind: kind))
-    }
-
-    func clearCalls() { calls.removeAll() }
-}
-
 private let text = "Hola, este es el primer paso. Then the second step runs. Done."
 
 @MainActor
@@ -212,5 +170,94 @@ struct PlayerTests {
 
         #expect(player.state.status == .finished)
         #expect(engine.spokenTexts.count == 3)
+    }
+}
+
+@MainActor
+@Suite("Player live rate and prefetch")
+struct PlayerLiveRateTests {
+    private let engine = FakeSpeechEngine()
+
+    @Test("With a live-rate engine a rate change is one setRate call; the utterance goes on")
+    func liveRate() throws {
+        engine.supportsLiveRate = true
+        let player = Player(engine: engine)
+        player.load(text)
+        player.play()
+        let id = try #require(engine.lastSpokenID)
+        engine.clearCalls()
+
+        player.setRate(SpeechRate(2.0))
+        player.faster()
+        player.pause()
+        player.slower()
+
+        #expect(engine.calls == [.setRate(SpeechRate(2.0)), .setRate(SpeechRate(2.25)), .pause, .setRate(SpeechRate(2.0))])
+        #expect(player.state.rate == SpeechRate(2.0))
+
+        player.resume()
+        engine.emit(.finished, for: id)
+        let nextID = try #require(engine.lastSpokenID)
+        #expect(engine.calls.suffix(2) == [.resume, .speak(text: "Then the second step runs.", rate: SpeechRate(2.0), utteranceID: nextID)])
+    }
+
+    @Test("The player asks the engine before every operation, so live rate follows the active engine")
+    func liveRateFollowsEngine() throws {
+        engine.supportsLiveRate = true
+        let player = Player(engine: engine)
+        player.load(text)
+        player.play()
+        player.faster()
+        #expect(engine.calls.last == .setRate(SpeechRate(1.25)))
+
+        engine.supportsLiveRate = false
+        engine.clearCalls()
+        player.faster()
+        let id = try #require(engine.lastSpokenID)
+        #expect(engine.calls == [.stop, .speak(text: "Hola, este es el primer paso.", rate: SpeechRate(1.5), utteranceID: id)])
+    }
+
+    @Test("Each spoken sentence comes with a prefetch hint for the next two sentences, with its voice and rate")
+    func prefetch() {
+        let samantha = VoiceDescriptor(id: "com.apple.voice.compact.en-US.Samantha", name: "Samantha", language: "en-US", quality: .default)
+        let player = Player(engine: engine, rate: SpeechRate(1.5), voice: samantha)
+        player.load(text)
+        player.play()
+        engine.emit(.finished, for: engine.lastSpokenID)
+        engine.emit(.finished, for: engine.lastSpokenID)
+
+        #expect(engine.preparations == [
+            FakeSpeechEngine.Preparation(upcoming: ["Then the second step runs.", "Done."], voice: samantha, rate: SpeechRate(1.5)),
+            FakeSpeechEngine.Preparation(upcoming: ["Done."], voice: samantha, rate: SpeechRate(1.5)),
+            FakeSpeechEngine.Preparation(upcoming: [], voice: samantha, rate: SpeechRate(1.5)),
+        ])
+    }
+
+    @Test("Operations that speak nothing send no prefetch hint")
+    func noPrefetchWithoutSpeaking() {
+        let player = Player(engine: engine)
+        player.load(text)
+        player.play()
+        engine.clearCalls()
+
+        player.pause()
+        player.next()
+        player.stop()
+
+        #expect(engine.preparations.isEmpty)
+    }
+
+    @Test("An engine without the optional members gets the defaults: no live rate, no-op setRate and prepare")
+    func protocolDefaults() {
+        let minimal = MinimalSpeechEngine()
+        #expect(minimal.supportsLiveRate == false)
+        minimal.setRate(SpeechRate(2.0))
+        minimal.prepare(upcoming: ["Next."], voice: nil, rate: .default)
+
+        let player = Player(engine: minimal)
+        player.load(text)
+        player.play()
+        player.faster()
+        #expect(player.state.rate == SpeechRate(1.25))
     }
 }

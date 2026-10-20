@@ -510,6 +510,110 @@ struct PlaybackQueueRateTests {
     }
 }
 
+/// A queue for a live-rate engine, loaded with `sampleText` and playing sentence 1 with
+/// progress at "ready".
+private func liveQueue() -> PlaybackQueue {
+    var queue = PlaybackQueue(supportsLiveRate: true)
+    _ = queue.load(sampleText)
+    _ = queue.play()
+    _ = queue.handle(event(queue.currentUtteranceID, .finished))
+    _ = queue.handle(event(queue.currentUtteranceID, .progress(characterOffset: utf16Offset(of: "ready", in: s1))))
+    return queue
+}
+
+@Suite("PlaybackQueue live rate")
+struct PlaybackQueueLiveRateTests {
+    @Test("Without live rate by default; it can be set at creation or later")
+    func configuration() {
+        #expect(PlaybackQueue().supportsLiveRate == false)
+        #expect(PlaybackQueue(supportsLiveRate: true).supportsLiveRate == true)
+        var queue = PlaybackQueue()
+        queue.supportsLiveRate = true
+        #expect(queue.supportsLiveRate)
+    }
+
+    @Test("While playing, a rate change is one setRate command; the utterance and its progress stay")
+    func whilePlaying() throws {
+        var queue = liveQueue()
+        let id = queue.currentUtteranceID
+
+        #expect(queue.setRate(SpeechRate(1.5)) == [.setRate(SpeechRate(1.5))])
+        #expect(queue.faster() == [.setRate(SpeechRate(1.75))])
+        #expect(queue.slower() == [.setRate(SpeechRate(1.5))])
+        #expect(queue.currentUtteranceID == id)
+        #expect(queue.characterOffset == utf16Offset(of: "ready", in: s1))
+        #expect(queue.status == .playing)
+        #expect(queue.rate == SpeechRate(1.5))
+
+        _ = queue.handle(event(id, .progress(characterOffset: utf16Offset(of: "review", in: s1))))
+        #expect(queue.characterOffset == utf16Offset(of: "review", in: s1))
+
+        let commands = queue.handle(event(id, .finished))
+        let next = try #require(queue.currentUtteranceID)
+        #expect(commands == [.speak(text: s2, rate: SpeechRate(1.5), utteranceID: next)])
+    }
+
+    @Test("While paused, the held utterance takes the new rate and resume continues it")
+    func whilePaused() {
+        var queue = liveQueue()
+        let id = queue.currentUtteranceID
+        _ = queue.pause()
+
+        #expect(queue.setRate(SpeechRate(2.0)) == [.setRate(SpeechRate(2.0))])
+        #expect(queue.currentUtteranceID == id)
+        #expect(queue.status == .paused)
+        #expect(queue.resume() == [.resume])
+    }
+
+    @Test("With no utterance held the rate is only stored, as without live rate")
+    func nothingHeld() throws {
+        var idle = PlaybackQueue(supportsLiveRate: true)
+        _ = idle.load(sampleText)
+        #expect(idle.setRate(SpeechRate(2.0)) == [])
+
+        var pausedAfterSkip = liveQueue()
+        _ = pausedAfterSkip.pause()
+        _ = pausedAfterSkip.next()
+        #expect(pausedAfterSkip.setRate(SpeechRate(2.0)) == [])
+        let commands = pausedAfterSkip.resume()
+        let id = try #require(pausedAfterSkip.currentUtteranceID)
+        #expect(commands == [.speak(text: s2, rate: SpeechRate(2.0), utteranceID: id)])
+
+        var same = liveQueue()
+        #expect(same.setRate(.default) == [])
+    }
+}
+
+@Suite("PlaybackQueue engine failures")
+struct PlaybackQueueFailureTests {
+    @Test("A failure of the current utterance pauses, so resume speaks the rest again")
+    func failurePauses() throws {
+        var queue = playingQueue(at: 1)
+        let id = queue.currentUtteranceID
+        _ = queue.handle(event(id, .progress(characterOffset: utf16Offset(of: "ready", in: s1))))
+
+        #expect(queue.handle(event(id, .failed(reason: "timeout"))) == [])
+        #expect(queue.status == .paused)
+        #expect(queue.currentUtteranceID == nil)
+        #expect(queue.currentIndex == 1)
+
+        let commands = queue.resume()
+        let fresh = try #require(queue.currentUtteranceID)
+        #expect(commands == [.speak(text: "ready for review.", rate: .default, utteranceID: fresh)])
+    }
+
+    @Test("A failure of a replaced utterance is ignored")
+    func staleFailure() {
+        var queue = playingQueue(at: 1)
+        let old = queue.currentUtteranceID
+        _ = queue.next()
+        let before = queue
+
+        #expect(queue.handle(event(old, .failed(reason: "timeout"))) == [])
+        #expect(queue == before)
+    }
+}
+
 private let marisol = VoiceDescriptor(id: "com.apple.voice.premium.es-ES.Marisol", name: "Marisol (Premium)", language: "es-ES", quality: .premium)
 private let samantha = VoiceDescriptor(id: "com.apple.voice.compact.en-US.Samantha", name: "Samantha", language: "en-US", quality: .default)
 

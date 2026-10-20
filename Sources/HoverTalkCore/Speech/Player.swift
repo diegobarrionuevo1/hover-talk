@@ -12,6 +12,9 @@ public final class Player {
         public let rate: SpeechRate
     }
 
+    /// How many sentences after the one being spoken each `prepare` hint names.
+    static let prefetchCount = 2
+
     /// Called after an operation or an engine event changes `state`, with the new state.
     public var onChange: ((State) -> Void)?
     public private(set) var state: State
@@ -46,18 +49,27 @@ public final class Player {
     public func setVoice(_ voice: VoiceDescriptor?) { apply { $0.setVoice(voice) } }
     public func stop() { apply { $0.stop() } }
 
+    /// Runs `operation` on the queue and its commands on the engine. The queue's live-rate flag
+    /// is read from the engine first, because an engine such as `FallbackSpeechEngine` can
+    /// change it between readings or in the middle of one. Every `speak` is followed by a
+    /// `prepare` hint with the next `prefetchCount` sentences (empty at the last sentence).
     private func apply(_ operation: (inout PlaybackQueue) -> [SpeechCommand]) {
+        queue.supportsLiveRate = engine.supportsLiveRate
         let commands = operation(&queue)
         for command in commands {
             switch command {
             case .speak(let text, let rate, let voice, let utteranceID):
                 engine.speak(text, rate: rate, voice: voice, utteranceID: utteranceID)
+                let upcoming = queue.sentences.dropFirst(queue.currentIndex + 1).prefix(Self.prefetchCount)
+                engine.prepare(upcoming: Array(upcoming), voice: voice, rate: rate)
             case .pause:
                 engine.pause()
             case .resume:
                 engine.resume()
             case .stop:
                 engine.stop()
+            case .setRate(let rate):
+                engine.setRate(rate)
             }
         }
         let newState = Self.state(of: queue)

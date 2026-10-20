@@ -15,6 +15,9 @@ public struct VoiceDescriptor: Equatable, Hashable, Sendable, Identifiable {
     public enum Source: Equatable, Hashable, Sendable {
         /// An `AVSpeechSynthesisVoice`; `id` is its identifier.
         case system
+        /// A voice of the user's voice server; `id` is the name the server lists, for example
+        /// "ef_dora" (`RemoteVoiceCatalog`).
+        case remote
     }
 
     public let id: String
