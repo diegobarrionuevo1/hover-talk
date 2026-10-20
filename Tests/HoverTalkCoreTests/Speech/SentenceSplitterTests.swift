@@ -1,3 +1,5 @@
+import Foundation
+import NaturalLanguage
 import Testing
 @testable import HoverTalkCore
 
@@ -86,6 +88,76 @@ struct SentenceSplitterTests {
     @Test("Empty and whitespace-only text produce no sentences", arguments: ["", "   ", "\n\n", " \t \r\n "])
     func emptyText(text: String) {
         #expect(splitter.split(text).isEmpty)
+    }
+}
+
+@Suite("SentenceSplitter ranges")
+struct SentenceSplitterRangesTests {
+    private let splitter = SentenceSplitter()
+
+    /// Every input of the `split(_:)` tests above and below, plus edge cases.
+    static let cases = [
+        "The build finished. All tests passed! Shall we ship it?",
+        "¿Cómo estás hoy? ¡Muy bien, gracias! El informe está listo.",
+        "Dr. Smith reviewed the plan. Use a formatter, e.g. a linter, before merging.",
+        "Version 3.5 is faster than 2.0 in most cases. La media fue 4,5 puntos.",
+        "Wait... the job is still running. Esperá… ya casi termina.",
+        "a note without any final punctuation",
+        "Next steps\n- update the parser\n- add tests for the new cases\n1. revisar el informe\n2. enviar los cambios",
+        "First point. Second point\nThird point.",
+        "   Hello there.   \n\n\t  \r\n   Hola de nuevo.  ",
+        "", "   ", "\n\n", " \t \r\n ",
+        "Wait... The job is still running.", "El Sr. García llegó tarde. Luego habló.",
+        "Hola, ¿qué tal? Bien, gracias.", "Bring pens, paper, etc. Then start the meeting.",
+        "Open Package.swift and bump it to v1.2.3 first. Then run the tests.",
+        "She said \"it works.\" Then she left.", "it works. then we ship it.", "First part.Second part.",
+        "Emoji \u{1F600} first. Then e\u{301}t\u{E9}.\u{2028}After a line separator. \u{00A0}Nbsp start.",
+    ]
+
+    @Test("split(_:) gives what the previous line-by-line implementation gave", arguments: cases)
+    func sameAsPreviousSplit(text: String) {
+        #expect(splitter.split(text) == Self.previousSplit(text))
+    }
+
+    @Test("The ranges cover exactly split(_:)'s sentences, in order", arguments: cases)
+    func rangesMatchSplit(text: String) {
+        #expect(splitter.ranges(in: text).map { String(text[$0]) } == splitter.split(text))
+    }
+
+    @Test("Ranges point into the original text, after trimming, across lines")
+    func rangesIndexTheText() {
+        let text = "  First point. Second\n\nThird.  "
+        let offsets = splitter.ranges(in: text).map {
+            text.distance(from: text.startIndex, to: $0.lowerBound)..<text.distance(from: text.startIndex, to: $0.upperBound)
+        }
+
+        #expect(offsets == [2..<14, 15..<21, 23..<29])
+    }
+
+    @Test("Ranges stay on the text's Characters with wide and combined Characters before them")
+    func rangesAfterWideCharacters() {
+        let text = "\u{1F600} e\u{301}. Next one."
+        let ranges = splitter.ranges(in: text)
+
+        #expect(ranges.map { String(text[$0]) } == ["\u{1F600} e\u{301}.", "Next one."])
+        #expect(ranges.map { text.distance(from: text.startIndex, to: $0.lowerBound) } == [0, 5])
+    }
+
+    /// `split(_:)` before `ranges(in:)` existed: each line tokenized as its own String, with
+    /// each sentence trimmed by Foundation.
+    private static func previousSplit(_ text: String) -> [String] {
+        text.split(whereSeparator: \.isNewline).flatMap { line -> [String] in
+            let line = String(line)
+            let tokenizer = NLTokenizer(unit: .sentence)
+            tokenizer.string = line
+            var result: [String] = []
+            tokenizer.enumerateTokens(in: line.startIndex..<line.endIndex) { range, _ in
+                let sentence = line[range].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !sentence.isEmpty { result.append(sentence) }
+                return true
+            }
+            return result
+        }
     }
 }
 

@@ -7,14 +7,26 @@ public struct HoverTarget: Equatable, Sendable {
     public let rect: CGRect
     /// As read from the screen, before `TextCleaner`.
     public let text: String
+    /// The terminal block the target was found as, so a click can read it with an on-screen
+    /// highlight; `nil` for a target given as a rect and text.
+    public let block: TerminalTextBlock?
 
     public init(rect: CGRect, text: String) {
         self.rect = rect
         self.text = text
+        block = nil
     }
 
     public init(_ block: TerminalTextBlock) {
-        self.init(rect: block.rect, text: block.text)
+        rect = block.rect
+        text = block.text
+        self.block = block
+    }
+
+    /// Compares rect and text only, so a target found again on an unchanged block is the same
+    /// target whether or not it carries its block.
+    public static func == (lhs: HoverTarget, rhs: HoverTarget) -> Bool {
+        lhs.rect == rhs.rect && lhs.text == rhs.text
     }
 }
 
@@ -40,6 +52,10 @@ public enum PickerEffect: Equatable, Sendable {
     case highlight(CGRect?)
     /// Read text aloud; already cleaned and never empty.
     case read(String)
+    /// Read a terminal block aloud and highlight it while reading: the document holds its
+    /// cleaned text (never empty) and the cells of each sentence; the anchor finds the block
+    /// again on later screens.
+    case readBlock(ReadingDocument, anchor: ReadingAnchor)
 }
 
 /// The picker as a pure state machine: `idle`, then `picking` from the hotkey until a click on
@@ -60,9 +76,11 @@ public struct PickerState: Sendable {
     /// While idle only the hotkey does anything. While picking:
     /// - A hover change highlights the new block, or clears the highlight. A block whose text
     ///   cleans to nothing counts as no block.
-    /// - A click over a block ends picking and reads its cleaned text. A click over no block
-    ///   does nothing: the app has consumed it anyway, and a missed click (such as on the
-    ///   blank row between two paragraphs) is then retried without pressing the hotkey again.
+    /// - A click over a block ends picking and reads its cleaned text: as a `ReadingDocument`
+    ///   with the block's anchor when the target carries a block read from a screen, otherwise
+    ///   as plain text. A click over no block does nothing: the app has consumed it anyway, and
+    ///   a missed click (such as on the blank row between two paragraphs) is then retried
+    ///   without pressing the hotkey again.
     /// - Esc, the hotkey and a cancel end picking without reading.
     public mutating func handle(_ event: PickerEvent) -> [PickerEffect] {
         guard case let .picking(hover) = phase else {
@@ -77,7 +95,10 @@ public struct PickerState: Sendable {
             phase = .picking(hover: readable)
             return [.highlight(readable?.rect)]
         case .click:
-            guard let text = hover.flatMap(spokenText(of:)) else { return [] }
+            guard let target = hover, let text = spokenText(of: target) else { return [] }
+            if let block = target.block, let anchor = block.anchor {
+                return end() + [.readBlock(ReadingDocument(cleaner.clean(block.mappedText)), anchor: anchor)]
+            }
             return end() + [.read(text)]
         case .escape, .hotkey, .cancel:
             return end()

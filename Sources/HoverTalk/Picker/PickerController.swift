@@ -65,15 +65,26 @@ final class PickerController {
             eventTap.stop()
             stopTracking()
         case .showOverlay:
+            readingSession.setPicking(true)
             overlay.show()
         case .hideOverlay:
             overlay.hide()
+            readingSession.setPicking(false)
         case let .highlight(rect):
             overlay.highlight(rect)
         case let .read(text):
             readingSession.read(text)
+        case let .readBlock(document, anchor):
+            let source = ReadingScreenSource(resolver: resolver, anchor: anchor, point: lastPoint ?? currentPoint() ?? .zero)
+            readingSession.read(document: document, screenSource: source)
         }
         return true
+    }
+
+    /// The pointer in AX coordinates, or `nil` without a screen.
+    private func currentPoint() -> CGPoint? {
+        guard let primaryHeight = NSScreen.screens.first?.frame.height else { return nil }
+        return AXCoordinates.fromCocoa(NSEvent.mouseLocation, primaryScreenHeight: primaryHeight)
     }
 
     // MARK: - Pointer tracking
@@ -102,8 +113,7 @@ final class PickerController {
     /// Looks up the block under the pointer when the pointer moved, or now and then while it
     /// stays still. A move during a lookup is picked up by the first check after it ends.
     private func track() {
-        guard let primaryHeight = NSScreen.screens.first?.frame.height else { return }
-        let point = AXCoordinates.fromCocoa(NSEvent.mouseLocation, primaryScreenHeight: primaryHeight)
+        guard let point = currentPoint() else { return }
         ticksSinceLookup += 1
         guard !isLookingUp, point != lastPoint || ticksSinceLookup >= Self.stillRefreshTicks else { return }
 

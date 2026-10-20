@@ -10,12 +10,30 @@ public struct TerminalTextBlock: Equatable, Sendable {
     public let columns: ClosedRange<Int>
     /// `rows` × `columns` in the coordinates of the frame passed to the provider.
     public let rect: CGRect
+    /// `text` with the screen cell of each Character (see `ParsedScreen.block(at:)`).
+    public let mappedText: MappedText<CellPosition>
+    /// Finds the block again on a later screen; `nil` for a block not read from a screen.
+    public let anchor: ReadingAnchor?
 
+    /// A block given as text alone: no Character has a cell, and there is no anchor.
     public init(text: String, rows: ClosedRange<Int>, columns: ClosedRange<Int>, rect: CGRect) {
-        self.text = text
+        self.init(mappedText: MappedText(text), rows: rows, columns: columns, rect: rect, anchor: nil)
+    }
+
+    /// `text` is `mappedText.text`.
+    public init(
+        mappedText: MappedText<CellPosition>,
+        rows: ClosedRange<Int>,
+        columns: ClosedRange<Int>,
+        rect: CGRect,
+        anchor: ReadingAnchor?
+    ) {
+        text = mappedText.text
+        self.mappedText = mappedText
         self.rows = rows
         self.columns = columns
         self.rect = rect
+        self.anchor = anchor
     }
 }
 
@@ -61,14 +79,16 @@ public enum TerminalGridProvider {
         row.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
-    static func joined(_ rows: [String]) -> String {
-        var text = ""
+    /// The rows joined as `block(at:frame:lines:registry:)` documents; the joining spaces and
+    /// newlines have no anchor.
+    static func joined<Anchor>(_ rows: [MappedText<Anchor>]) -> MappedText<Anchor> {
+        var text = MappedText<Anchor>()
         for (index, row) in rows.enumerated() {
             if index > 0 {
-                let newLine = startsWithListMarker(row) || isCodeFence(row) || isCodeFence(rows[index - 1])
-                text += newLine ? "\n" : " "
+                let newLine = startsWithListMarker(row.text) || isCodeFence(row.text) || isCodeFence(rows[index - 1].text)
+                text.append(newLine ? "\n" : " ", anchor: nil)
             }
-            text += row
+            text.append(row)
         }
         return text
     }

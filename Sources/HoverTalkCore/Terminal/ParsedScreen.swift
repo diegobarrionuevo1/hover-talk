@@ -72,7 +72,9 @@ public struct ParsedScreen: Sendable {
     }
 
     /// The paragraph under `point`, as `TerminalGridProvider.block(at:frame:lines:registry:)`
-    /// documents it.
+    /// documents it. Its `mappedText` anchors each Character to the cell it was read from (a
+    /// collapsed whitespace run to the run's first cell; joining spaces and newlines to none),
+    /// and its `anchor` records the paragraph's rows within its columns and pane.
     public func block(at point: CGPoint) -> TerminalTextBlock? {
         guard let cell = geometry.cell(at: point),
               let parsed = panes.first(where: { $0.pane.contains(cell) }),
@@ -98,11 +100,25 @@ public struct ParsedScreen: Sendable {
         let columns = left...right
 
         return TerminalTextBlock(
-            text: TerminalGridProvider.joined(paragraph.map(\.text)),
+            mappedText: TerminalGridProvider.joined(zip(rows, paragraph).map { mappedText(row: $0, $1) }),
             rows: rows,
             columns: columns,
-            rect: geometry.rect(rows: rows, columns: columns)
+            rect: geometry.rect(rows: rows, columns: columns),
+            anchor: ReadingAnchor(grid: grid, rows: rows, columns: columns, paneColumns: pane.columns)
         )
+    }
+
+    /// A content row's text with each Character anchored to its cell: the row's cells within
+    /// the columns the profile reads, with whitespace collapsed as `ReadRow.text` is. When that
+    /// is not the profile's text (a profile may return text that is not on screen), the
+    /// profile's text without anchors.
+    private func mappedText(row: Int, _ readRow: ReadRow) -> MappedText<CellPosition> {
+        var cells = MappedText<CellPosition>()
+        for (column, character) in grid.characters(row: row, in: readRow.columns) {
+            cells.append(character, anchor: CellPosition(row: row, column: column))
+        }
+        let collapsed = cells.collapsingWhitespace()
+        return collapsed.text == readRow.text ? collapsed : MappedText(readRow.text)
     }
 
     /// A role's pane-relative columns on screen, clamped to the pane; the whole pane for `nil`.

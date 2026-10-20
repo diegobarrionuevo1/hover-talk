@@ -44,6 +44,15 @@ public struct TerminalGrid: Equatable, Sendable {
         return String(cells[row][range].filter { !$0.isContinuation }.map(\.character))
     }
 
+    /// The Characters `text(row:in:)` reads, each with the column of its first cell.
+    public func characters(row: Int, in columnRange: ClosedRange<Int>) -> [(column: Int, character: Character)] {
+        guard let range = clamped(columnRange), cells.indices.contains(row) else { return [] }
+        return range.compactMap { column in
+            let cell = cells[row][column]
+            return cell.isContinuation ? nil : (column, cell.character)
+        }
+    }
+
     /// The columns from the first to the last non-whitespace cell of a row within a range
     /// (a wide Character's continuation cell counts), or `nil` when that part of the row is blank.
     public func contentColumns(row: Int, in columnRange: ClosedRange<Int>) -> ClosedRange<Int>? {

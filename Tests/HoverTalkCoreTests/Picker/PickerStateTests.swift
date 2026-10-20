@@ -130,4 +130,27 @@ struct PickerStateTests {
 
         #expect(HoverTarget(block) == HoverTarget(rect: block.rect, text: block.text))
     }
+
+    @Test("A click over a block read from a screen reads it as a document with its anchor, so it can be highlighted")
+    func clickReadsBlockDocument() throws {
+        let block = try #require(try FixtureScreen("synthetic-claude-code").block(row: 22, column: 4))
+        let anchor = try #require(block.anchor)
+        var state = picking(hover: HoverTarget(block))
+
+        let effects = state.handle(.click)
+
+        let document = ReadingDocument(TextCleaner().clean(block.mappedText))
+        #expect(effects == [.stopCapture, .hideOverlay, .readBlock(document, anchor: anchor)])
+        #expect(document.text == "The notes now list the three beds. The lawn section is unchanged.")
+        #expect(!document.spans.isEmpty)
+        #expect(state.phase == .idle)
+    }
+
+    @Test("A block given only as text and rect is read as plain text")
+    func clickReadsUnanchoredBlockAsText() {
+        let block = TerminalTextBlock(text: "Raw **text**.", rows: 2...3, columns: 0...9, rect: CGRect(x: 1, y: 2, width: 3, height: 4))
+        var state = picking(hover: HoverTarget(block))
+
+        #expect(state.handle(.click).last == .read("Raw text."))
+    }
 }

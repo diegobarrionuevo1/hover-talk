@@ -25,12 +25,28 @@ public struct TextCleaner: Sendable {
         self.codeBlocks = codeBlocks
     }
 
+    /// The text of `clean(_:)` on the text without anchors.
     public func clean(_ text: String) -> String {
-        var lines: [String] = []
+        clean(MappedText<Never>(text)).text
+    }
+
+    /// Cleans `mapped.text` and keeps the anchor of every Character it keeps:
+    /// - removed glyphs and marks take their anchors with them;
+    /// - a whitespace run collapsed to one space keeps the run's first anchor;
+    /// - `Code omitted.` takes, for each of its Characters, the anchor of the opening fence
+    ///   line's first non-blank anchored Character (`nil` when it has none);
+    /// - the newline that joins two kept lines has no anchor.
+    public func clean<Anchor>(_ mapped: MappedText<Anchor>) -> MappedText<Anchor> {
+        var lines: [MappedText<Anchor>] = []
         var inCodeBlock = false
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.drop(while: \.isWhitespace).hasPrefix("```") {
-                if !inCodeBlock, codeBlocks == .omit { lines.append(Self.codeOmitted) }
+        for line in Self.lines(of: mapped) {
+            if line.text.drop(while: \.isWhitespace).hasPrefix("```") {
+                if !inCodeBlock, codeBlocks == .omit {
+                    let fence = line.elements.first { !$0.0.isWhitespace && $0.1 != nil }?.1
+                    var omitted = MappedText<Anchor>()
+                    omitted.append(Self.codeOmitted, anchor: fence)
+                    lines.append(omitted)
+                }
                 inCodeBlock.toggle()
             } else if !inCodeBlock {
                 lines.append(Self.cleanGlyphs(Self.cleanMarkdown(line)))
@@ -38,29 +54,49 @@ public struct TextCleaner: Sendable {
                 lines.append(Self.cleanGlyphs(line))
             }
         }
-        return lines.filter { !$0.isEmpty }.joined(separator: "\n")
+
+        var result = MappedText<Anchor>()
+        for line in lines where !line.text.isEmpty {
+            if !result.text.isEmpty { result.append("\n", anchor: nil) }
+            result.append(line)
+        }
+        return result
+    }
+
+    /// The text's lines, split at every `\n` Character; empty lines are kept.
+    private static func lines<Anchor>(of mapped: MappedText<Anchor>) -> [MappedText<Anchor>] {
+        var lines = [MappedText<Anchor>()]
+        for (character, anchor) in mapped.elements {
+            if character == "\n" {
+                lines.append(MappedText())
+            } else {
+                lines[lines.count - 1].append(character, anchor: anchor)
+            }
+        }
+        return lines
     }
 
     private static let droppedScalars: [ClosedRange<UInt32>] = [
         0x2500...0x257F, 0x2580...0x259F, 0x2800...0x28FF, 0xE000...0xF8FF, 0xF0000...0x10FFFF,
     ]
 
-    private static func cleanGlyphs(_ line: some StringProtocol) -> String {
-        let kept = line.map { character -> Character in
+    private static func cleanGlyphs<Anchor>(_ line: MappedText<Anchor>) -> MappedText<Anchor> {
+        var kept = MappedText<Anchor>()
+        for (character, anchor) in line.elements {
             let dropped = character.unicodeScalars.first.map { scalar in
                 droppedScalars.contains { $0.contains(scalar.value) }
             } ?? false
-            return dropped ? " " : character
+            kept.append(dropped ? " " : character, anchor: anchor)
         }
-        return String(kept).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return kept.collapsingWhitespace()
     }
 
-    private static func cleanMarkdown(_ line: some StringProtocol) -> String {
-        var text = String(line.drop(while: \.isWhitespace))
-        let hashes = text.prefix { $0 == "#" }.count
-        if (1...6).contains(hashes), text.dropFirst(hashes).first?.isWhitespace == true {
-            text.removeFirst(hashes)
+    private static func cleanMarkdown<Anchor>(_ line: MappedText<Anchor>) -> MappedText<Anchor> {
+        var items = Array(line.elements.drop { $0.0.isWhitespace })
+        let hashes = items.prefix { $0.0 == "#" }.count
+        if (1...6).contains(hashes), items.dropFirst(hashes).first?.0.isWhitespace == true {
+            items.removeFirst(hashes)
         }
-        return text.replacing("**", with: "").replacing("__", with: "").replacing("`", with: "")
+        return MappedText(elements: items).removing("**").removing("__").removing("`")
     }
 }
