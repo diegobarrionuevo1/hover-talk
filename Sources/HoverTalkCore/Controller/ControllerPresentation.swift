@@ -40,6 +40,20 @@ public struct ControllerPresentation: Equatable, Sendable {
         }
     }
 
+    /// A small, non-interactive status icon.
+    public struct Notice: Equatable, Sendable {
+        /// SF Symbol name for the image.
+        public let symbolName: String
+        /// Also the tooltip.
+        public let accessibilityLabel: String
+
+        /// The system voice reads because the voice server is not available.
+        public static let usingFallbackVoice = Notice(
+            symbolName: "wifi.exclamationmark",
+            accessibilityLabel: "Voice server unreachable — using system voice"
+        )
+    }
+
     public static let panelTitle = "\(AppInfo.name) Controls"
 
     /// Visible while playing or paused. Idle (including after stop) and finished hide it.
@@ -59,13 +73,19 @@ public struct ControllerPresentation: Equatable, Sendable {
     public let rateAccessibilityLabel: String
     /// Always enabled.
     public let readingMode: ReadingModeControl
+    /// `Notice.usingFallbackVoice` while the panel is visible and the reading uses the system
+    /// voice in place of the voice server; nil otherwise.
+    public let voiceNotice: Notice?
 
     /// `readingMode` is the mode the next pick uses (`Preferences.readingMode`).
-    public init(state: Player.State, readingMode: ReadingMode) {
+    /// `usingFallbackVoice` says whether the current reading uses the system voice because the
+    /// voice server is not available (`RemoteRouting.isFallback`, or a failure mid-reading).
+    public init(state: Player.State, readingMode: ReadingMode, usingFallbackVoice: Bool = false) {
         self.readingMode = ReadingModeControl(mode: readingMode)
         let isActive = state.status == .playing || state.status == .paused
         let isLoaded = state.count > 0
         isVisible = isActive
+        voiceNotice = isActive && usingFallbackVoice ? .usingFallbackVoice : nil
 
         let mode: PlayPauseMode = switch state.status {
         case .playing: .pause

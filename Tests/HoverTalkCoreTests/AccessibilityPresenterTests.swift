@@ -75,12 +75,23 @@ struct AppCopyTests {
         #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("turn it off and on again"))
     }
 
-    @Test("Onboarding names the app, explains the purpose, and states that nothing leaves the Mac")
+    @Test("Onboarding names the app, explains the purpose, and says nothing leaves the Mac unless the user sets up a voice server")
     func onboardingCopy() {
         #expect(AppCopy.onboardingTitle.contains(AppInfo.name))
         #expect(AppCopy.onboardingMessage.contains("text under the pointer"))
-        #expect(AppCopy.onboardingMessage.contains("Nothing leaves your Mac"))
+        #expect(AppCopy.onboardingMessage.contains("no telemetry"))
+        #expect(AppCopy.onboardingMessage.contains("Nothing leaves your Mac unless you set up your own voice server"))
+        #expect(!AppCopy.onboardingMessage.contains("no network calls"))
         #expect(AppCopy.onboardingOpenSettingsButton == "Open System Settings")
         #expect(AppCopy.onboardingLaterButton == "Later")
+    }
+
+    @Test("The voice server settings state what is sent and name the setup guide")
+    func voiceServerCopy() {
+        #expect(AppCopy.voiceServerPrivacyNote == "The text being read is sent to this server. Nothing else is sent.")
+        #expect(AppCopy.voiceServerToggleTitle == "Use my voice server when it is available")
+        #expect(AppCopy.voiceServerURLPlaceholder == "http://192.168.1.50:8880")
+        #expect(AppCopy.testConnectionButton == "Test Connection")
+        #expect(AppCopy.voiceServerGuide.contains("docs/voice-server.md"))
     }
 }

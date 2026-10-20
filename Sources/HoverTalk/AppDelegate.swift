@@ -18,21 +18,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let voices = SystemVoiceProvider()
     private let voiceMenu = VoiceMenu()
     private var settingsWindow: SettingsWindowController?
+    private var remoteVoice: RemoteVoiceMonitor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         TerminalAXSource.setMessagingTimeout(seconds: Self.axMessagingTimeout)
 
         let preferences = Preferences(storage: UserDefaultsSettingsStorage(defaults: .standard))
         self.preferences = preferences
+        // Probes the voice server only when the user turned it on and entered an address.
+        let remoteVoice = RemoteVoiceMonitor(config: preferences.remoteVoiceServer)
+        self.remoteVoice = remoteVoice
         let session = ReadingSession(
-            player: Player(engine: AVSpeechEngine(), rate: preferences.speechRate),
+            systemEngine: AVSpeechEngine(),
+            remoteEngine: RemoteSpeechEngine(),
+            remoteVoice: remoteVoice,
             controller: ControllerPanel(),
             preferences: preferences,
             voices: voices
         )
         readingSession = session
         let settingsWindow = SettingsWindowController(
-            model: SettingsModel(preferences: preferences, voices: voices, readingSession: session),
+            model: SettingsModel(preferences: preferences, voices: voices, readingSession: session, remoteVoice: remoteVoice),
             voices: voices
         )
         self.settingsWindow = settingsWindow
@@ -40,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             settingsWindow?.refresh()
         }
         voices.onChange = { [weak settingsWindow] in
+            settingsWindow?.refresh()
+        }
+        remoteVoice.onChange = { [weak settingsWindow] in
             settingsWindow?.refresh()
         }
         voiceMenu.onSelect = { [weak session, weak settingsWindow] selection in
@@ -144,14 +153,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// The controller's toggle changes the reading mode too, so the check mark is set each
     /// time the menu opens. The voice list is read again too: voices may have been downloaded
-    /// since the menu last opened.
+    /// since the menu last opened. The voice server's status line shows its state at that moment.
     func menuNeedsUpdate(_ menu: NSMenu) {
         continueReadingMenuItem.state = preferences?.readingMode == .continuous ? .on : .off
         voices.refresh()
+        let serverStatus = remoteVoice.map { RemoteVoicePresenter.menuStatus(config: $0.config, state: $0.state) }
         voiceMenu.update(
             catalog: voices.catalog(),
             selection: preferences?.voiceSelection ?? .default,
-            lastReadingLanguage: readingSession?.lastReadingLanguage
+            lastReadingLanguage: readingSession?.lastReadingLanguage,
+            serverStatus: serverStatus
         )
     }
 

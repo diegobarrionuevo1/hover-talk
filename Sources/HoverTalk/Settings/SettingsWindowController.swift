@@ -15,10 +15,11 @@ final class SettingsWindowController {
     }
 
     /// Reads the voice list again (voices may have been downloaded meanwhile), then shows the
-    /// window in front, centered the first time.
+    /// window in front, centered the first time. The URL field shows the stored address again.
     func show() {
         voices.refresh()
         model.refresh()
+        model.resetServerURLText()
         let window = self.window ?? makeWindow()
         // An accessory app is not frontmost by default; activate so the window gets focus.
         NSApp.activate()

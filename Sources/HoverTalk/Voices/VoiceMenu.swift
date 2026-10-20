@@ -1,9 +1,10 @@
 import AppKit
 import HoverTalkCore
 
-/// The Voice submenu of the status menu: Automatic, the voices of the user's languages and of
-/// the last reading under language headers (`VoiceCatalog.menuGroups`), a link to the Settings
-/// window for the rest, and the voice download link with a hint.
+/// The Voice submenu of the status menu: the voice server's status line, Automatic, the voices
+/// of the user's languages and of the last reading under language headers
+/// (`VoiceCatalog.menuGroups`), a link to the Settings window for the rest, and the voice
+/// download link with a hint.
 @MainActor
 final class VoiceMenu: NSObject {
     /// At most this many voices, plus the chosen one when it would not be shown.
@@ -21,9 +22,17 @@ final class VoiceMenu: NSObject {
         item.submenu = menu
     }
 
-    /// Rebuilds the items for `catalog`, with a check mark on `selection`.
-    func update(catalog: VoiceCatalog, selection: VoiceSelection, lastReadingLanguage: String?) {
+    /// Rebuilds the items for `catalog`, with a check mark on `selection`, under the voice
+    /// server's status line (`RemoteVoicePresenter.menuStatus`) when there is one.
+    func update(catalog: VoiceCatalog, selection: VoiceSelection, lastReadingLanguage: String?, serverStatus: String?) {
         menu.removeAllItems()
+
+        if let serverStatus {
+            let status = NSMenuItem(title: serverStatus, action: nil, keyEquivalent: "")
+            status.isEnabled = false
+            menu.addItem(status)
+            menu.addItem(.separator())
+        }
 
         let automatic = makeItem(AppCopy.automaticVoiceTitle, action: #selector(selectAutomatic))
         automatic.state = selection == .automatic ? .on : .off

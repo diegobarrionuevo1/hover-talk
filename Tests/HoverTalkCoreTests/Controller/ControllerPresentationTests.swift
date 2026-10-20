@@ -205,4 +205,43 @@ struct ControllerPresentationTests {
     func panelTitle() {
         #expect(ControllerPresentation.panelTitle == "\(AppInfo.name) Controls")
     }
+
+    // MARK: Voice server notice
+
+    @Test("No voice server notice unless the system voice stands in for the voice server")
+    func noNoticeByDefault() {
+        #expect(presentation().voiceNotice == nil)
+        #expect(ControllerPresentation(
+            state: Player.State(currentIndex: 0, count: 3, status: .playing, rate: .default),
+            readingMode: .continuous,
+            usingFallbackVoice: false
+        ).voiceNotice == nil)
+    }
+
+    @Test("While a reading uses the fallback voice the panel shows a small notice with a tooltip", arguments: [
+        PlaybackStatus.playing, .paused,
+    ])
+    func noticeWhileVisible(status: PlaybackStatus) {
+        let shown = ControllerPresentation(
+            state: Player.State(currentIndex: 0, count: 3, status: status, rate: .default),
+            readingMode: .paragraph,
+            usingFallbackVoice: true
+        )
+
+        #expect(shown.voiceNotice == ControllerPresentation.Notice(
+            symbolName: "wifi.exclamationmark",
+            accessibilityLabel: "Voice server unreachable — using system voice"
+        ))
+    }
+
+    @Test("A hidden panel shows no notice", arguments: [PlaybackStatus.idle, .finished])
+    func noNoticeWhenHidden(status: PlaybackStatus) {
+        let shown = ControllerPresentation(
+            state: Player.State(currentIndex: 0, count: 3, status: status, rate: .default),
+            readingMode: .continuous,
+            usingFallbackVoice: true
+        )
+
+        #expect(shown.voiceNotice == nil)
+    }
 }

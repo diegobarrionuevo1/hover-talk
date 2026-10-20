@@ -30,6 +30,8 @@ final class ControllerPanel {
     private let readingModeButton = ControlButton(symbolPointSize: 12)
     private let progressLabel = ControllerPanel.makeLabel(minimumWidth: 64, color: .secondaryLabelColor)
     private let rateLabel = ControllerPanel.makeLabel(minimumWidth: 44, color: .labelColor)
+    /// `ControllerPresentation.voiceNotice`; hidden, and left out of the layout, when nil.
+    private let voiceNoticeView = ControllerPanel.makeNoticeView()
 
     init() {
         configurePanel()
@@ -52,6 +54,13 @@ final class ControllerPanel {
         progressLabel.setAccessibilityLabel(presentation.progressAccessibilityLabel)
         rateLabel.stringValue = presentation.rateText
         rateLabel.setAccessibilityLabel(presentation.rateAccessibilityLabel)
+
+        if let notice = presentation.voiceNotice {
+            voiceNoticeView.image = NSImage(systemSymbolName: notice.symbolName, accessibilityDescription: notice.accessibilityLabel)
+            voiceNoticeView.toolTip = notice.accessibilityLabel
+            voiceNoticeView.setAccessibilityLabel(notice.accessibilityLabel)
+        }
+        voiceNoticeView.isHidden = presentation.voiceNotice == nil
 
         fitToContent()
         if presentation.isVisible {
@@ -91,6 +100,7 @@ final class ControllerPanel {
             slowerButton, rateLabel, fasterButton,
             stopButton,
             readingModeButton,
+            voiceNoticeView,
         ])
         stack.orientation = .horizontal
         stack.alignment = .centerY
@@ -99,6 +109,7 @@ final class ControllerPanel {
         stack.setCustomSpacing(10, after: progressLabel)
         stack.setCustomSpacing(10, after: fasterButton)
         stack.setCustomSpacing(10, after: stopButton)
+        stack.setCustomSpacing(6, after: readingModeButton)
         stack.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
@@ -172,6 +183,16 @@ final class ControllerPanel {
         label.alignment = .center
         label.widthAnchor.constraint(greaterThanOrEqualToConstant: minimumWidth).isActive = true
         return label
+    }
+
+    /// A small secondary-colored symbol, not a button: the notice only informs.
+    private static func makeNoticeView() -> NSImageView {
+        let view = NSImageView()
+        view.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
+        view.contentTintColor = .secondaryLabelColor
+        view.isHidden = true
+        view.widthAnchor.constraint(equalToConstant: 18).isActive = true
+        return view
     }
 
     /// A stretchable rounded rectangle; only its alpha matters to `maskImage`.

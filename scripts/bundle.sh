@@ -27,6 +27,17 @@ rm -rf "$APP_DIR"
 mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Resources"
 cp "$BIN_PATH" "$CONTENTS_DIR/MacOS/$APP_NAME"
 
+# Network keys, for the opt-in voice server only (the app sends nothing else):
+# - NSAllowsLocalNetworking lifts App Transport Security (ATS) for plain http to unqualified host
+#   names ("studio"), ".local" names ("studio.local") and IPv4/IPv6 addresses
+#   ("http://192.168.1.50:8880"), per Apple's NSAllowsLocalNetworking reference. Since macOS 14,
+#   ATS blocks IP addresses by default, so this key is required for numeric LAN addresses.
+#   It does not cover other names: plain http to a Tailscale MagicDNS name
+#   ("studio.tailnet.ts.net") or any public domain stays blocked, and the app reports it as
+#   "Blocked: use https for this address" (RemoteVoiceError.insecureConnectionBlocked).
+#   https always passes ATS.
+# - NSLocalNetworkUsageDescription is the text of macOS's Local Network privacy prompt, shown the
+#   first time the app contacts a host on the local network.
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -56,6 +67,13 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <true/>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 $APP_NAME contributors. MIT License.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>$APP_NAME connects to the voice server you configure on your local network.</string>
 </dict>
 </plist>
 PLIST

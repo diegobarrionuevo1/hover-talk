@@ -24,7 +24,8 @@ public enum AppCopy {
     public static let onboardingTitle = "\(AppInfo.name) needs Accessibility access"
     public static let onboardingMessage = """
         \(AppInfo.name) uses the macOS Accessibility API to read the text under the pointer \
-        so it can speak it aloud. Nothing leaves your Mac: there are no network calls and no telemetry.
+        so it can speak it aloud. There is no telemetry. Nothing leaves your Mac unless you set up \
+        your own voice server in Settings; then only the text being read is sent to it.
 
         Turn on \(AppInfo.name) in System Settings > Privacy & Security > Accessibility.
         """
@@ -62,5 +63,14 @@ public enum AppCopy {
     /// The toggle for `ReadingMode.continuous`.
     public static let continuousReadingSettingTitle = "Continue reading below the picked paragraph"
     public static let voiceServerSectionTitle = "Voice Server"
-    public static let voiceServerPlaceholder = "Not available yet. Reading with a speech server you host yourself comes in a later version."
+    /// `RemoteVoiceServerConfig.enabled`.
+    public static let voiceServerToggleTitle = "Use my voice server when it is available"
+    public static let voiceServerURLLabel = "Server URL"
+    public static let voiceServerURLPlaceholder = "http://192.168.1.50:8880"
+    public static let testConnectionButton = "Test Connection"
+    /// The picker for `RemoteVoiceServerConfig.voice`; its first entry is `automaticVoiceTitle`.
+    public static let remoteVoicePickerTitle = "Server voice"
+    public static let voiceServerPrivacyNote = "The text being read is sent to this server. Nothing else is sent."
+    /// There is no public repository URL yet, so the guide is named by its path.
+    public static let voiceServerGuide = "Setup guide: docs/voice-server.md in the \(AppInfo.name) repository."
 }
