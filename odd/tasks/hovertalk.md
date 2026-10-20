@@ -138,7 +138,7 @@ Per task: route (inline or delegated, with trigger), commit, checks observed, re
 | T6b | delegated (writer trigger: 25 files) | cacd299 | `swift build` 0 warnings; `swift test` 330/330 (RED: 26 failing first; 13 mutation checks) | medium, `under_budget` at 9079 lines (suspected tool defect); slice pending |
 | T6c | delegated (writer trigger: 25 files) | 47b3828 | clean build 0 warnings; `swift test` 369/369 (RED: 34 failing first; 13 mutation checks) | medium, `under_budget` at 10492 lines (suspected tool defect); slice pending |
 | T6d-1 | delegated (split after two empty worker runs on the full T6d) | 626c896 | clean build 0 warnings; `swift test` 445/445 (RED: 62 failing first; 22 mutation checks) | assessed with T6d-2 |
-| T6d-2 | delegated (writer trigger: 20 files) | see git log (`feat: add voice server engine, monitor and settings`) | clean build 0 warnings; `swift test` 476/476 (RED: 32 failing first; 5 mutation checks); `plutil -lint` ok; ATS keys present | pending assess |
+| T6d-2 | delegated (writer trigger: 20 files) | see git log (`feat: add voice server engine, monitor and settings`) | clean build 0 warnings; `swift test` 476/476 (RED: 32 failing first; 5 mutation checks); `plutil -lint` ok; ATS keys present | assess vs 421ff25: high, `review_due` (14078 lines) → consent granted → START refused `lens_context_budget_exceeded` (no authority created). Consequence of the earlier `under_budget` misclassification: the unreviewed range grew past the reviewer budget. Remediation: review the riskiest slices separately (T6 event tap `418ecba..aa886ec`, T6d network `47b3828..574bfe8`) |
 
 ## Progress
 - 2026-10-16: The AX feasibility probe on Ghostty is done (see Validated facts).
