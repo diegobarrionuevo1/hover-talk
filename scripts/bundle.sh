@@ -78,9 +78,24 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc signature: it identifies this exact binary, so it changes whenever a rebuild changes
-# the binary. macOS ties the Accessibility permission to the signature, so it may ask for the
-# permission again after rebuilding.
-codesign --force --sign - "$APP_DIR"
+# Signing. macOS ties the Accessibility permission to the app's designated requirement.
+# - With a certificate identity, that requirement names the bundle id and the certificate, so it
+#   stays the same across rebuilds and the permission keeps working.
+# - With an ad-hoc signature ("-"), the requirement is the binary's cdhash, which changes on every
+#   rebuild: System Settings keeps showing the old entry as on, but it no longer matches, and the
+#   app reads "not granted" until the entry is removed and added again.
+# SIGN_IDENTITY overrides the choice ("-" forces ad-hoc). Otherwise the first valid
+# "Apple Development" identity in the keychain is used (a free Apple ID in Xcode provides one).
+if [[ -z "${SIGN_IDENTITY:-}" ]]; then
+    SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk '/"Apple Development: /{print $2; exit}')"
+fi
+if [[ -z "$SIGN_IDENTITY" || "$SIGN_IDENTITY" == "-" ]]; then
+    SIGN_IDENTITY="-"
+    echo "warning: ad-hoc signature; after each rebuild, remove $APP_NAME from Privacy & Security >" \
+        "Accessibility and add it again. Set SIGN_IDENTITY or add an Apple ID in Xcode to avoid this." >&2
+fi
+codesign --force --timestamp=none --sign "$SIGN_IDENTITY" "$APP_DIR"
+echo "designated requirement: $(codesign -d -r- "$APP_DIR" 2>&1 | sed -n 's/^designated => //p')"
 
 echo "$APP_DIR"

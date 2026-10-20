@@ -72,7 +72,9 @@ struct AppCopyTests {
     @Test("The picker's permission message says where to grant it and how to fix an outdated grant")
     func pickerNeedsAccessibilityCopy() {
         #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("Privacy & Security > Accessibility"))
-        #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("turn it off and on again"))
+        // Observed 2026-10-20: toggling did not help after a rebuild; removing and re-adding did.
+        #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("remove it with the minus button"))
+        #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("add it again"))
     }
 
     @Test("Onboarding names the app, explains the purpose, and says nothing leaves the Mac unless the user sets up a voice server")

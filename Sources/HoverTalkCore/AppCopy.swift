@@ -17,8 +17,9 @@ public enum AppCopy {
         Picking text needs the Accessibility permission. Turn on \(AppInfo.name) in \
         System Settings > Privacy & Security > Accessibility.
 
-        If it is already on, turn it off and on again: macOS can keep an outdated permission \
-        after \(AppInfo.name) is rebuilt or updated.
+        If it is already on, select it, remove it with the minus button, then add it again \
+        with the plus button: after \(AppInfo.name) is rebuilt or updated, macOS can keep showing \
+        an old permission that no longer matches the app.
         """
 
     public static let onboardingTitle = "\(AppInfo.name) needs Accessibility access"
