@@ -3,13 +3,17 @@ import CoreGraphics
 import HoverTalkCore
 
 /// While started, a session-level event tap, inserted ahead of the other session-level taps,
-/// that consumes left clicks and Esc as `PickerInputFilter` decides, so they never reach the
-/// app under the pointer (Esc would interrupt a running OpenCode agent; a click could move
-/// tmux's pane focus), and reports each click and Esc through `onEvent`.
+/// that consumes left clicks, drags and Esc as `PickerInputFilter` decides, so they never reach
+/// the app under the pointer (Esc would interrupt a running OpenCode agent; a click could move
+/// tmux's pane focus), and reports each click and Esc through `onEvent` and each drag through
+/// `onDrag`. Mouse locations are `CGEvent.location`: global display coordinates with the origin
+/// at the main display's top-left corner, the coordinates AX uses.
 @MainActor
 final class PickerEventTap {
     /// Called on the main thread after the tap's callback has returned, so it may stop the tap.
     var onEvent: ((PickerEvent) -> Void)?
+    /// Called like `onEvent`, with the drag the event moved or released.
+    var onDrag: ((PickerDrag) -> Void)?
 
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
@@ -50,7 +54,7 @@ final class PickerEventTap {
     }
 
     /// Whether to consume the event.
-    fileprivate func handle(_ type: CGEventType, keyCode: Int64) -> Bool {
+    fileprivate func handle(_ type: CGEventType, keyCode: Int64, location: CGPoint) -> Bool {
         switch type {
         case .tapDisabledByTimeout:
             // macOS disables a tap whose callback is too slow; keep capturing while started.
@@ -63,9 +67,10 @@ final class PickerEventTap {
         default:
             break
         }
-        guard port != nil, let input = Self.input(for: type, keyCode: keyCode) else { return false }
+        guard port != nil, let input = Self.input(for: type, keyCode: keyCode, location: location) else { return false }
         let decision = filter.handle(input)
         if let event = decision.event { deliver(event) }
+        if let drag = decision.drag { deliver(drag) }
         return decision.consume
     }
 
@@ -77,12 +82,19 @@ final class PickerEventTap {
         }
     }
 
-    private static func input(for type: CGEventType, keyCode: Int64) -> PickerInput? {
+    /// As `deliver(_:)` for an event.
+    private func deliver(_ drag: PickerDrag) {
+        Task { @MainActor [weak self] in
+            self?.onDrag?(drag)
+        }
+    }
+
+    private static func input(for type: CGEventType, keyCode: Int64, location: CGPoint) -> PickerInput? {
         let isEscape = keyCode == Int64(kVK_Escape)
         switch type {
-        case .leftMouseDown: return .mouseDown
-        case .leftMouseDragged: return .mouseDragged
-        case .leftMouseUp: return .mouseUp
+        case .leftMouseDown: return .mouseDown(location)
+        case .leftMouseDragged: return .mouseDragged(location)
+        case .leftMouseUp: return .mouseUp(location)
         case .keyDown where isEscape: return .escapeDown
         case .keyUp where isEscape: return .escapeUp
         default: return nil
@@ -102,8 +114,9 @@ private func pickerEventTapCallback(
     guard let userInfo else { return Unmanaged.passUnretained(event) }
     let tap = Unmanaged<PickerEventTap>.fromOpaque(userInfo).takeUnretainedValue()
     let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+    let location = event.location
     let consume = MainActor.assumeIsolated {
-        tap.handle(type, keyCode: keyCode)
+        tap.handle(type, keyCode: keyCode, location: location)
     }
     return consume ? nil : Unmanaged.passUnretained(event)
 }

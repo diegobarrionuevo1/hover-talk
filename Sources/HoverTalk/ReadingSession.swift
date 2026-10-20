@@ -3,26 +3,39 @@ import HoverTalkCore
 /// Keeps one `Player`, one `ControllerPanel` and one `ReadingHighlighter` in sync, and is the
 /// single way to start reading text aloud.
 ///
-/// Takes over the player's `onChange` and the controller's `onAction`: every player state
-/// change is rendered as a `ControllerPresentation` and passed to the highlighter, and every
-/// button runs its player operation.
+/// Takes over the player's `onChange` and the controller's `onAction` and
+/// `onToggleReadingMode`: every player state change is rendered as a `ControllerPresentation`
+/// (with the reading mode from `preferences`) and passed to the highlighter, and every button
+/// runs its player operation.
 @MainActor
 final class ReadingSession {
     private let player: Player
     private let controller: ControllerPanel
+    private let preferences: Preferences
     private let highlighter = ReadingHighlighter()
 
-    init(player: Player, controller: ControllerPanel) {
+    init(player: Player, controller: ControllerPanel, preferences: Preferences) {
         self.player = player
         self.controller = controller
+        self.preferences = preferences
         controller.onAction = { [weak player] action in
             player?.perform(action)
         }
-        player.onChange = { [weak controller, weak highlighter] state in
-            controller?.render(ControllerPresentation(state: state))
-            highlighter?.update(state)
+        controller.onToggleReadingMode = { [weak self] in
+            self?.toggleReadingMode()
         }
-        controller.render(ControllerPresentation(state: player.state))
+        player.onChange = { [weak self] state in
+            self?.renderController(state)
+            self?.highlighter.update(state)
+        }
+        renderController(player.state)
+    }
+
+    /// Switches between continuous and paragraph reading. Only later picks read with the new
+    /// mode: a document being read was already read from the screen and goes on unchanged.
+    func toggleReadingMode() {
+        preferences.readingMode = preferences.readingMode.toggled
+        renderController(player.state)
     }
 
     /// Replaces whatever is being read with `text`, without any on-screen highlight, and reads
@@ -51,5 +64,9 @@ final class ReadingSession {
     /// While the picker shows its own highlight, the reading marks hide; they come back after.
     func setPicking(_ picking: Bool) {
         highlighter.setSuspended(picking)
+    }
+
+    private func renderController(_ state: Player.State) {
+        controller.render(ControllerPresentation(state: state, readingMode: preferences.readingMode))
     }
 }

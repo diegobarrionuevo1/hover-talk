@@ -2,8 +2,8 @@ import AppKit
 import HoverTalkCore
 
 /// A highlight over other apps: one transparent, borderless panel per screen, drawing rounded
-/// rectangles. The picker outlines the block under the pointer with it; the reading highlighter
-/// marks the text being read.
+/// rectangles. The picker outlines the block under the pointer, or a drag's selection, with it;
+/// the reading highlighter marks the text being read.
 ///
 /// The panels never take focus from the app being read: a borderless window cannot become key
 /// (`NSWindow.canBecomeKey`), `.nonactivatingPanel` keeps this app inactive, and
@@ -11,7 +11,9 @@ import HoverTalkCore
 @MainActor
 final class HighlightOverlay {
     enum Style: Equatable {
-        /// The picker's block: an accent outline over a light accent fill, padded on every side.
+        /// The picker's block or selection: an accent outline over a light accent fill, padded
+        /// on every side. Outline shapes are drawn merged into one, so the row rects of a
+        /// selection, which overlap through their padding, get one outline around them all.
         case outline
         /// Text queued for reading: a faint accent fill without outline.
         case light
@@ -51,9 +53,9 @@ final class HighlightOverlay {
         panels = []
     }
 
-    /// Outlines `rect` (AX coordinates) on every screen it touches; `nil` clears it.
-    func highlight(_ rect: CGRect?) {
-        draw(rect.map { [Shape(rect: $0, style: .outline)] } ?? [])
+    /// Outlines `rects` (AX coordinates) on every screen they touch; `[]` clears the outline.
+    func highlight(_ rects: [CGRect]) {
+        draw(rects.map { Shape(rect: $0, style: .outline) })
     }
 
     /// Draws `shapes` in order, replacing whatever was drawn; each on every screen it touches.
@@ -140,22 +142,36 @@ private final class HighlightView: NSView {
         false
     }
 
+    /// Every outline shape as one merged path first, then the other shapes in order. The two
+    /// kinds never share an overlay: the picker and the reading highlighter each own one.
     override func draw(_ dirtyRect: NSRect) {
-        for shape in shapes {
-            let style = shape.style
-            // Inset by half the line width so the outline stays inside the padded rect.
-            let path = NSBezierPath(
-                roundedRect: shape.rect.insetBy(dx: style.lineWidth / 2, dy: style.lineWidth / 2),
-                xRadius: style.cornerRadius,
-                yRadius: style.cornerRadius
-            )
-            NSColor.controlAccentColor.withAlphaComponent(style.fillAlpha).setFill()
-            path.fill()
-            if style.lineWidth > 0 {
-                path.lineWidth = style.lineWidth
-                NSColor.controlAccentColor.setStroke()
-                path.stroke()
-            }
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let outlines = shapes.filter { $0.style == .outline }.map(Self.path(for:))
+        if let first = outlines.first {
+            Self.draw(outlines.dropFirst().reduce(first) { $0.union($1) }, style: .outline, in: context)
         }
+        for shape in shapes where shape.style != .outline {
+            Self.draw(Self.path(for: shape), style: shape.style, in: context)
+        }
+    }
+
+    /// The shape's rounded rect, inset by half the line width so an outline stays inside the
+    /// padded rect; the corner radius shrinks to fit a rect too small for it.
+    private static func path(for shape: HighlightOverlay.Shape) -> CGPath {
+        let style = shape.style
+        let rect = shape.rect.insetBy(dx: style.lineWidth / 2, dy: style.lineWidth / 2)
+        let radius = max(0, min(style.cornerRadius, rect.width / 2, rect.height / 2))
+        return CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    }
+
+    private static func draw(_ path: CGPath, style: HighlightOverlay.Style, in context: CGContext) {
+        context.addPath(path)
+        context.setFillColor(NSColor.controlAccentColor.withAlphaComponent(style.fillAlpha).cgColor)
+        context.fillPath()
+        guard style.lineWidth > 0 else { return }
+        context.addPath(path)
+        context.setStrokeColor(NSColor.controlAccentColor.cgColor)
+        context.setLineWidth(style.lineWidth)
+        context.strokePath()
     }
 }

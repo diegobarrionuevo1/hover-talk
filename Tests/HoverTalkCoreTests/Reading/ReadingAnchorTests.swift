@@ -80,6 +80,26 @@ struct ReadingAnchorTests {
         #expect(anchor.rowOffset(in: ParsedScreen(lines: sidebar, frame: screen.frame)) == 0)
     }
 
+    @Test("Claude Code: a continuous block's anchor checks only the rows it read, so a changing tool block between them keeps it")
+    func continuousBlockSkipsChrome() throws {
+        let screen = try FixtureScreen("synthetic-claude-code")
+        let parse = { (lines: [String]) in ParsedScreen(lines: lines, frame: screen.frame) }
+        let block = try #require(parse(screen.lines).block(at: screen.center(row: 8, column: 10), mode: .continuous))
+        let anchor = try #require(block.anchor)
+        #expect(anchor.rows == 8...23)
+
+        var toolChanged = screen.lines
+        toolChanged[15] = "  \u{23BF}  Read 31 lines (ctrl+r to expand)"
+        #expect(anchor.rowOffset(in: parse(toolChanged)) == 0)
+
+        var answerChanged = screen.lines
+        answerChanged[23] = "  changed."
+        #expect(anchor.rowOffset(in: parse(answerChanged)) == nil)
+
+        let scrolled = Array(screen.lines.dropFirst(2)) + ["", ""]
+        #expect(anchor.rowOffset(in: parse(scrolled)) == -2)
+    }
+
     @Test("A screen without the captured pane loses the anchor")
     func otherLayout() throws {
         let vsplit = try FixtureScreen(VSplitPanes.name)

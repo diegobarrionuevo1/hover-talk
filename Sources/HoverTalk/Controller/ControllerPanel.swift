@@ -2,7 +2,8 @@ import AppKit
 import HoverTalkCore
 
 /// The floating player controls: a borderless, non-activating panel that shows a
-/// `ControllerPresentation` and reports button presses through `onAction`.
+/// `ControllerPresentation` and reports button presses through `onAction`, and presses of the
+/// reading-mode toggle through `onToggleReadingMode`.
 ///
 /// `.nonactivatingPanel` keeps the app being read frontmost when a button is clicked, and a
 /// borderless window cannot become key (`NSWindow.canBecomeKey`), so the panel never takes
@@ -12,6 +13,7 @@ final class ControllerPanel {
     private static let cornerRadius: CGFloat = 12
 
     var onAction: ((ControllerAction) -> Void)?
+    var onToggleReadingMode: (() -> Void)?
 
     private let panel = NSPanel(
         contentRect: .zero,
@@ -25,6 +27,7 @@ final class ControllerPanel {
     private let slowerButton = ControlButton(symbolPointSize: 12)
     private let fasterButton = ControlButton(symbolPointSize: 12)
     private let stopButton = ControlButton(symbolPointSize: 13)
+    private let readingModeButton = ControlButton(symbolPointSize: 12)
     private let progressLabel = ControllerPanel.makeLabel(minimumWidth: 64, color: .secondaryLabelColor)
     private let rateLabel = ControllerPanel.makeLabel(minimumWidth: 44, color: .labelColor)
 
@@ -40,6 +43,10 @@ final class ControllerPanel {
         apply(presentation.slower, to: slowerButton)
         apply(presentation.faster, to: fasterButton)
         apply(presentation.stop, to: stopButton)
+        let readingMode = presentation.readingMode
+        readingModeButton.setSymbol(readingMode.symbolName, label: readingMode.accessibilityLabel)
+        // The accent tint marks the toggle as on; nil keeps the default image color.
+        readingModeButton.contentTintColor = readingMode.isOn ? .controlAccentColor : nil
 
         progressLabel.stringValue = presentation.progressText
         progressLabel.setAccessibilityLabel(presentation.progressAccessibilityLabel)
@@ -75,12 +82,15 @@ final class ControllerPanel {
             button.target = self
             button.action = #selector(buttonPressed(_:))
         }
+        readingModeButton.target = self
+        readingModeButton.action = #selector(readingModeButtonPressed(_:))
 
         let stack = NSStackView(views: [
             previousButton, playPauseButton, nextButton,
             progressLabel,
             slowerButton, rateLabel, fasterButton,
             stopButton,
+            readingModeButton,
         ])
         stack.orientation = .horizontal
         stack.alignment = .centerY
@@ -88,6 +98,7 @@ final class ControllerPanel {
         stack.setCustomSpacing(10, after: nextButton)
         stack.setCustomSpacing(10, after: progressLabel)
         stack.setCustomSpacing(10, after: fasterButton)
+        stack.setCustomSpacing(10, after: stopButton)
         stack.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
@@ -148,6 +159,10 @@ final class ControllerPanel {
         onAction?(action)
     }
 
+    @objc private func readingModeButtonPressed(_ sender: ControlButton) {
+        onToggleReadingMode?()
+    }
+
     // MARK: - Factories
 
     private static func makeLabel(minimumWidth: CGFloat, color: NSColor) -> NSTextField {
@@ -173,7 +188,8 @@ final class ControllerPanel {
     }
 }
 
-/// An image-only button that remembers the `ControllerAction` it triggers.
+/// An image-only button that remembers the `ControllerAction` it triggers; `nil` for the
+/// reading-mode toggle.
 private final class ControlButton: NSButton {
     var controllerAction: ControllerAction?
 

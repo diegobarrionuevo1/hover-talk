@@ -42,6 +42,21 @@ public struct TerminalGeometry: Equatable, Sendable {
         return CellPosition(row: min(row, rows - 1), column: min(column, columns - 1))
     }
 
+    /// The cell under `point`, moved into `pane` when the point lies outside it, even outside
+    /// the frame: its row and its column each clamp to the pane's nearest one. `nil` without
+    /// cells or for a point that is not finite.
+    func cell(nearest point: CGPoint, in pane: Pane) -> CellPosition? {
+        let size = cellSize
+        guard size.width > 0, size.height > 0, point.x.isFinite, point.y.isFinite else { return nil }
+        func clamped(_ value: CGFloat, to range: ClosedRange<Int>) -> Int {
+            Int(min(max(value.rounded(.down), CGFloat(range.lowerBound)), CGFloat(range.upperBound)))
+        }
+        return CellPosition(
+            row: clamped((point.y - frame.minY) / size.height, to: pane.rows),
+            column: clamped((point.x - frame.minX) / size.width, to: pane.columns)
+        )
+    }
+
     /// The rect covering a block of cells, in the same coordinates as `frame`.
     public func rect(rows: ClosedRange<Int>, columns: ClosedRange<Int>) -> CGRect {
         let size = cellSize

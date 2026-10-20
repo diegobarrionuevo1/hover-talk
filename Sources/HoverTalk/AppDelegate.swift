@@ -2,14 +2,16 @@ import AppKit
 import HoverTalkCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let trustPollInterval: TimeInterval = 2
     /// The longest any AX call may wait for an app, so a hung app cannot stall the picker.
     private static let axMessagingTimeout: Float = 0.25
 
     private var statusItem: NSStatusItem?
     private let statusMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let continueReadingMenuItem = NSMenuItem(title: AppCopy.continueReadingMenuTitle, action: nil, keyEquivalent: "")
     private var trustPollTimer: Timer?
+    private var preferences: Preferences?
     private var readingSession: ReadingSession?
     private var picker: PickerController?
     private var pickerHotkey: GlobalHotkey?
@@ -17,9 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         TerminalAXSource.setMessagingTimeout(seconds: Self.axMessagingTimeout)
 
-        let session = ReadingSession(player: Player(engine: AVSpeechEngine()), controller: ControllerPanel())
+        let preferences = Preferences(storage: UserDefaultsSettingsStorage(defaults: .standard))
+        self.preferences = preferences
+        let session = ReadingSession(player: Player(engine: AVSpeechEngine()), controller: ControllerPanel(), preferences: preferences)
         readingSession = session
-        let picker = PickerController(readingSession: session)
+        let picker = PickerController(readingSession: session, preferences: preferences)
         picker.onNeedsAccessibility = { [weak self] in
             self?.pickerNeedsAccessibility()
         }
@@ -66,6 +70,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         pickItem.target = self
         menu.addItem(pickItem)
+
+        continueReadingMenuItem.target = self
+        continueReadingMenuItem.action = #selector(toggleContinuousReading)
+        menu.addItem(continueReadingMenuItem)
         menu.addItem(.separator())
 
         statusMenuItem.target = self
@@ -98,8 +106,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quitItem.target = NSApp
         menu.addItem(quitItem)
 
+        menu.delegate = self
         item.menu = menu
         statusItem = item
+    }
+
+    /// The controller's toggle changes the reading mode too, so the check mark is set each
+    /// time the menu opens.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        continueReadingMenuItem.state = preferences?.readingMode == .continuous ? .on : .off
+    }
+
+    @objc private func toggleContinuousReading() {
+        readingSession?.toggleReadingMode()
     }
 
     private func apply(_ presentation: AccessibilityPresentation) {

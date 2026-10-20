@@ -2,6 +2,8 @@
 public enum AppCopy {
     public static let quitMenuTitle = "Quit \(AppInfo.name)"
     public static let openSettingsMenuTitle = "Open Accessibility Settings…"
+    /// The checkable menu item for `ReadingMode.continuous`.
+    public static let continueReadingMenuTitle = "Continue Reading Below"
 
     /// The menu item that starts the picker, with its hotkey after two spaces, or alone when
     /// the hotkey could not be registered (`nil`).

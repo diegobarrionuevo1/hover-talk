@@ -5,9 +5,10 @@ private func presentation(
     index: Int = 0,
     count: Int = 12,
     status: PlaybackStatus = .playing,
-    rate: SpeechRate = .default
+    rate: SpeechRate = .default,
+    readingMode: ReadingMode = .continuous
 ) -> ControllerPresentation {
-    ControllerPresentation(state: Player.State(currentIndex: index, count: count, status: status, rate: rate))
+    ControllerPresentation(state: Player.State(currentIndex: index, count: count, status: status, rate: rate), readingMode: readingMode)
 }
 
 @Suite("ControllerPresentation")
@@ -178,6 +179,26 @@ struct ControllerPresentationTests {
         #expect(shown.stop.action == .stop)
         #expect(shown.stop.symbolName == "stop.fill")
         #expect(shown.stop.accessibilityLabel == "Stop")
+    }
+
+    // MARK: Reading mode
+
+    @Test("In continuous mode the reading-mode toggle is on and says that reading continues below")
+    func continuousToggle() {
+        let toggle = presentation(readingMode: .continuous).readingMode
+
+        #expect(toggle.isOn)
+        #expect(toggle.symbolName == "text.line.first.and.arrowtriangle.forward")
+        #expect(toggle.accessibilityLabel == "Continue reading below")
+    }
+
+    @Test("In paragraph mode the reading-mode toggle is off and says that only the paragraph is read")
+    func paragraphToggle() {
+        let toggle = presentation(readingMode: .paragraph).readingMode
+
+        #expect(!toggle.isOn)
+        #expect(toggle.symbolName == "paragraphsign")
+        #expect(toggle.accessibilityLabel == "Read only this paragraph")
     }
 
     @Test("The panel title names the app")

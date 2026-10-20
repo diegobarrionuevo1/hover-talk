@@ -17,6 +17,29 @@ public struct ControllerPresentation: Equatable, Sendable {
         public let isEnabled: Bool
     }
 
+    /// The toggle between `ReadingMode.continuous` (on) and `.paragraph` (off). It is no
+    /// `ControllerAction`: it changes what the next pick reads, not the player.
+    public struct ReadingModeControl: Equatable, Sendable {
+        /// SF Symbol name for the button image.
+        public let symbolName: String
+        /// Also the tooltip: what a pick reads in the current mode.
+        public let accessibilityLabel: String
+        public let isOn: Bool
+
+        public init(mode: ReadingMode) {
+            switch mode {
+            case .continuous:
+                symbolName = "text.line.first.and.arrowtriangle.forward"
+                accessibilityLabel = "Continue reading below"
+                isOn = true
+            case .paragraph:
+                symbolName = "paragraphsign"
+                accessibilityLabel = "Read only this paragraph"
+                isOn = false
+            }
+        }
+    }
+
     public static let panelTitle = "\(AppInfo.name) Controls"
 
     /// Visible while playing or paused. Idle (including after stop) and finished hide it.
@@ -34,8 +57,12 @@ public struct ControllerPresentation: Equatable, Sendable {
     /// The rate multiplier, for example "1.25×".
     public let rateText: String
     public let rateAccessibilityLabel: String
+    /// Always enabled.
+    public let readingMode: ReadingModeControl
 
-    public init(state: Player.State) {
+    /// `readingMode` is the mode the next pick uses (`Preferences.readingMode`).
+    public init(state: Player.State, readingMode: ReadingMode) {
+        self.readingMode = ReadingModeControl(mode: readingMode)
         let isActive = state.status == .playing || state.status == .paused
         let isLoaded = state.count > 0
         isVisible = isActive

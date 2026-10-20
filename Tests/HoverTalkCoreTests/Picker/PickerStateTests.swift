@@ -30,8 +30,9 @@ struct PickerStateTests {
         #expect(state.phase == .picking(hover: nil))
     }
 
-    @Test("While idle, clicks, Esc, hover changes and cancels do nothing", arguments: [
+    @Test("While idle, clicks, Esc, hover changes, selections and cancels do nothing", arguments: [
         PickerEvent.click, .escape, .cancel, .hoverChanged(HoverTarget(rect: .zero, text: "Text.")),
+        .selectionChanged(HoverTarget(rect: .zero, text: "Text.")), .selectionEnded(HoverTarget(rect: .zero, text: "Text.")),
     ])
     func idleIgnoresEverythingButTheHotkey(event: PickerEvent) {
         var state = PickerState()
@@ -46,7 +47,7 @@ struct PickerStateTests {
     func hoverHighlights() {
         var state = picking()
 
-        #expect(state.handle(.hoverChanged(paragraph)) == [.highlight(paragraph.rect)])
+        #expect(state.handle(.hoverChanged(paragraph)) == [.highlight([paragraph.rect])])
         #expect(state.phase == .picking(hover: paragraph))
     }
 
@@ -54,8 +55,8 @@ struct PickerStateTests {
     func hoverMovesAndClears() {
         var state = picking(hover: paragraph)
 
-        #expect(state.handle(.hoverChanged(other)) == [.highlight(other.rect)])
-        #expect(state.handle(.hoverChanged(nil)) == [.highlight(nil)])
+        #expect(state.handle(.hoverChanged(other)) == [.highlight([other.rect])])
+        #expect(state.handle(.hoverChanged(nil)) == [.highlight([])])
         #expect(state.phase == .picking(hover: nil))
     }
 
@@ -73,7 +74,7 @@ struct PickerStateTests {
         var state = picking(hover: paragraph)
         let border = HoverTarget(rect: CGRect(x: 0, y: 0, width: 50, height: 10), text: "\u{2500}\u{2500}\u{2500} \u{2580}\u{2580}")
 
-        #expect(state.handle(.hoverChanged(border)) == [.highlight(nil)])
+        #expect(state.handle(.hoverChanged(border)) == [.highlight([])])
         #expect(state.phase == .picking(hover: nil))
     }
 
@@ -152,5 +153,82 @@ struct PickerStateTests {
         var state = picking(hover: HoverTarget(block))
 
         #expect(state.handle(.click).last == .read("Raw text."))
+    }
+
+    @Test("A block of several paragraphs is outlined paragraph by paragraph")
+    func hoverOutlinesEveryParagraph() throws {
+        let screen = try FixtureScreen("synthetic-claude-code")
+        let block = try #require(ParsedScreen(lines: screen.lines, frame: screen.frame)
+            .block(at: screen.center(row: 8, column: 10), mode: .continuous))
+        var state = picking()
+
+        #expect(block.rects.count == 3)
+        #expect(state.handle(.hoverChanged(HoverTarget(block))) == [.highlight(block.rects)])
+    }
+
+    // MARK: Drag selection
+
+    /// The vsplit selection from row 9 to row 12 of the left pane.
+    private func selection() throws -> TerminalTextBlock {
+        let screen = try FixtureScreen(VSplitPanes.name)
+        return try #require(ParsedScreen(lines: screen.lines, frame: screen.frame)
+            .selection(from: screen.center(row: 9, column: 11), to: screen.center(row: 12, column: 30)))
+    }
+
+    @Test("A drag outlines the selection's rows in place of the block under the pointer, and ignores hover changes")
+    func dragOutlinesSelection() throws {
+        let selection = try HoverTarget(selection())
+        var state = picking(hover: paragraph)
+
+        #expect(state.handle(.selectionChanged(selection)) == [.highlight(selection.rects)])
+        #expect(state.phase == .selecting(selection: selection))
+        #expect(state.handle(.hoverChanged(other)) == [])
+        #expect(state.handle(.click) == [])
+        #expect(state.handle(.selectionChanged(selection)) == [])
+        #expect(state.handle(.selectionChanged(nil)) == [.highlight([])])
+        #expect(state.phase == .selecting(selection: nil))
+    }
+
+    @Test("Releasing a drag reads exactly the selection, as a document with its anchor")
+    func releaseReadsSelection() throws {
+        let block = try selection()
+        let anchor = try #require(block.anchor)
+        var state = picking(hover: paragraph)
+        _ = state.handle(.selectionChanged(HoverTarget(block)))
+
+        let effects = state.handle(.selectionEnded(HoverTarget(block)))
+
+        #expect(effects == [.stopCapture, .hideOverlay, .readBlock(ReadingDocument(TextCleaner().clean(block.mappedText)), anchor: anchor)])
+        #expect(state.phase == .idle)
+    }
+
+    @Test("A drag released before any live selection arrived still reads its selection")
+    func releaseWithoutLiveSelection() {
+        var state = picking()
+
+        #expect(state.handle(.selectionEnded(paragraph)) == [.stopCapture, .hideOverlay, .read("A bold word here.")])
+    }
+
+    @Test("A drag that selects nothing readable keeps picking, with nothing outlined", arguments: [
+        nil, HoverTarget(rect: .zero, text: "\u{2500}\u{2500} \u{2503}"),
+    ])
+    func emptySelectionKeepsPicking(target: HoverTarget?) {
+        var state = picking(hover: paragraph)
+        _ = state.handle(.selectionChanged(target))
+
+        #expect(state.handle(.selectionEnded(target)) == [.highlight([])])
+        #expect(state.phase == .picking(hover: nil))
+        #expect(state.handle(.hoverChanged(other)) == [.highlight([other.rect])])
+    }
+
+    @Test("Esc, the hotkey or a cancel during a drag end picking without reading", arguments: [
+        PickerEvent.escape, .hotkey, .cancel,
+    ])
+    func endDuringDrag(event: PickerEvent) {
+        var state = picking()
+        _ = state.handle(.selectionChanged(paragraph))
+
+        #expect(state.handle(event) == [.stopCapture, .hideOverlay])
+        #expect(state.phase == .idle)
     }
 }

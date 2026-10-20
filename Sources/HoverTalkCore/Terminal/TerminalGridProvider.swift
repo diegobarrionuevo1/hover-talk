@@ -1,23 +1,29 @@
 import CoreGraphics
 
-/// A paragraph found on a terminal screen.
+/// Text found on a terminal screen: a paragraph, several paragraphs read one after another
+/// (`ParsedScreen.block(at:mode:)`), or a drag selection (`ParsedScreen.selection(from:to:)`).
 public struct TerminalTextBlock: Equatable, Sendable {
-    /// The paragraph's rows joined into text to read.
+    /// The rows read, joined into text to read; paragraphs are separated by a newline.
     public let text: String
+    /// From the first to the last row read.
     public let rows: ClosedRange<Int>
-    /// From the leftmost to the rightmost non-blank cell of the paragraph's rows, among the
-    /// cells its profile reads (so without a stripped gutter or sidebar), inside its pane.
+    /// From the leftmost to the rightmost non-blank cell read on those rows, among the cells
+    /// the profile reads (so without a stripped gutter or sidebar), inside one pane.
     public let columns: ClosedRange<Int>
     /// `rows` × `columns` in the coordinates of the frame passed to the provider.
     public let rect: CGRect
-    /// `text` with the screen cell of each Character (see `ParsedScreen.block(at:)`).
+    /// What the picker outlines, in the same coordinates: one rect per paragraph, or one per
+    /// row of a selection.
+    public let rects: [CGRect]
+    /// `text` with the screen cell of each Character (see `ParsedScreen.block(at:mode:)`).
     public let mappedText: MappedText<CellPosition>
     /// Finds the block again on a later screen; `nil` for a block not read from a screen.
     public let anchor: ReadingAnchor?
 
-    /// A block given as text alone: no Character has a cell, and there is no anchor.
+    /// A block given as text alone: no Character has a cell, there is no anchor, and `rects`
+    /// is `[rect]`.
     public init(text: String, rows: ClosedRange<Int>, columns: ClosedRange<Int>, rect: CGRect) {
-        self.init(mappedText: MappedText(text), rows: rows, columns: columns, rect: rect, anchor: nil)
+        self.init(mappedText: MappedText(text), rows: rows, columns: columns, rect: rect, rects: [rect], anchor: nil)
     }
 
     /// `text` is `mappedText.text`.
@@ -26,6 +32,7 @@ public struct TerminalTextBlock: Equatable, Sendable {
         rows: ClosedRange<Int>,
         columns: ClosedRange<Int>,
         rect: CGRect,
+        rects: [CGRect],
         anchor: ReadingAnchor?
     ) {
         text = mappedText.text
@@ -33,6 +40,7 @@ public struct TerminalTextBlock: Equatable, Sendable {
         self.rows = rows
         self.columns = columns
         self.rect = rect
+        self.rects = rects
         self.anchor = anchor
     }
 }
