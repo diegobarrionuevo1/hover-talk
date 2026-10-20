@@ -9,7 +9,8 @@ public enum PlaybackStatus: Equatable, Sendable {
 
 /// An instruction for the speech engine, produced by `PlaybackQueue`.
 public enum SpeechCommand: Equatable, Sendable {
-    case speak(text: String, rate: SpeechRate, utteranceID: UUID)
+    /// `voice` nil means the engine's default voice.
+    case speak(text: String, rate: SpeechRate, voice: VoiceDescriptor? = nil, utteranceID: UUID)
     case pause
     case resume
     case stop
@@ -22,14 +23,17 @@ public enum SpeechCommand: Equatable, Sendable {
 ///
 /// Each `speak` command carries a fresh utterance ID, and `handle(_:)` ignores events whose
 /// ID is not the current one. A late `.finished` or `.cancelled` from an utterance that was
-/// stopped by a skip or a rate change therefore cannot move the cursor a second time.
+/// stopped by a skip, a rate change or a voice change therefore cannot move the cursor a
+/// second time.
 public struct PlaybackQueue: Equatable, Sendable {
     public private(set) var sentences: [String] = []
     public private(set) var currentIndex = 0
     public private(set) var status = PlaybackStatus.idle
     public private(set) var rate: SpeechRate
+    /// The voice every `speak` command carries; nil for the engine's default voice.
+    public private(set) var voice: VoiceDescriptor?
     /// The utterance the engine holds for the current sentence, or nil when it holds none
-    /// (for example when idle, finished, or paused after a skip or a rate change).
+    /// (for example when idle, finished, or paused after a skip, a rate or a voice change).
     public private(set) var currentUtteranceID: UUID?
     /// UTF-16 offset, within the current sentence, of the last word the engine reported.
     public private(set) var characterOffset = 0
@@ -40,15 +44,17 @@ public struct PlaybackQueue: Equatable, Sendable {
     /// UTF-16 length of the current utterance's text; progress offsets must be below it.
     private var utteranceLength = 0
 
-    public init(rate: SpeechRate = .default) {
+    public init(rate: SpeechRate = .default, voice: VoiceDescriptor? = nil) {
         self.rate = rate
+        self.voice = voice
     }
 
     public var currentSentence: String? {
         sentences.indices.contains(currentIndex) ? sentences[currentIndex] : nil
     }
 
-    /// Replaces the sentences with those of `text` and returns to idle. The rate is kept.
+    /// Replaces the sentences with those of `text` and returns to idle. The rate and the voice
+    /// are kept.
     public mutating func load(_ text: String) -> [SpeechCommand] {
         let commands = stop()
         sentences = SentenceSplitter().split(text)
@@ -77,8 +83,8 @@ public struct PlaybackQueue: Equatable, Sendable {
     }
 
     /// Continues the paused utterance, or speaks the current sentence again when the engine
-    /// no longer holds one: from its beginning after a skip, from the last reported word after
-    /// a rate change.
+    /// no longer holds one: from its beginning after a skip or a voice change, from the last
+    /// reported word after a rate change.
     public mutating func resume() -> [SpeechCommand] {
         guard status == .paused else { return [] }
         status = .playing
@@ -140,6 +146,22 @@ public struct PlaybackQueue: Equatable, Sendable {
 
     public mutating func slower() -> [SpeechCommand] {
         setRate(rate.slower())
+    }
+
+    /// Stores the voice. While playing, the current sentence is spoken again from its beginning
+    /// with the new voice right away; while paused, the held utterance is dropped and resume
+    /// does that. Unlike a rate change, which goes on from the last word, a new voice restarts
+    /// the sentence, so no sentence is heard in two voices.
+    public mutating func setVoice(_ newVoice: VoiceDescriptor?) -> [SpeechCommand] {
+        guard newVoice != voice else { return [] }
+        voice = newVoice
+        guard status == .playing || status == .paused else { return [] }
+        var commands = releaseUtterance()
+        moveTo(currentIndex)
+        if status == .playing {
+            commands.append(speakCurrentSentence(fromUTF16Offset: 0))
+        }
+        return commands
     }
 
     /// Returns to idle at the first sentence. Always emits `.stop`, even when nothing plays.
@@ -207,7 +229,7 @@ public struct PlaybackQueue: Equatable, Sendable {
         utteranceStart = start.utf16Offset(in: sentence)
         utteranceLength = text.utf16.count
         characterOffset = utteranceStart
-        return .speak(text: text, rate: rate, utteranceID: id)
+        return .speak(text: text, rate: rate, voice: voice, utteranceID: id)
     }
 
     /// The start of the character that contains the UTF-16 `offset`, so an offset inside a

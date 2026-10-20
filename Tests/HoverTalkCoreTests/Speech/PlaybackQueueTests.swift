@@ -510,6 +510,120 @@ struct PlaybackQueueRateTests {
     }
 }
 
+private let marisol = VoiceDescriptor(id: "com.apple.voice.premium.es-ES.Marisol", name: "Marisol (Premium)", language: "es-ES", quality: .premium)
+private let samantha = VoiceDescriptor(id: "com.apple.voice.compact.en-US.Samantha", name: "Samantha", language: "en-US", quality: .default)
+
+@Suite("PlaybackQueue voice changes")
+struct PlaybackQueueVoiceTests {
+    @Test("Every speak command carries the queue's voice, and load keeps the voice")
+    func commandsCarryVoice() throws {
+        var queue = PlaybackQueue(voice: marisol)
+        _ = queue.load(sampleText)
+
+        let first = queue.play()
+        let firstID = try #require(queue.currentUtteranceID)
+        #expect(first == [.speak(text: s0, rate: .default, voice: marisol, utteranceID: firstID)])
+
+        let next = queue.handle(event(firstID, .finished))
+        let nextID = try #require(queue.currentUtteranceID)
+        #expect(next == [.speak(text: s1, rate: .default, voice: marisol, utteranceID: nextID)])
+
+        _ = queue.load(sampleText)
+        #expect(queue.voice == marisol)
+    }
+
+    @Test("A voice change while playing restarts the current sentence from its beginning with the new voice")
+    func voiceChangeWhilePlaying() throws {
+        var queue = playingQueue(at: 1)
+        let old = queue.currentUtteranceID
+        _ = queue.handle(event(old, .progress(characterOffset: utf16Offset(of: "ready", in: s1))))
+
+        let commands = queue.setVoice(marisol)
+        let id = try #require(queue.currentUtteranceID)
+
+        #expect(commands == [.stop, .speak(text: s1, rate: .default, voice: marisol, utteranceID: id)])
+        #expect(id != old)
+        #expect(queue.voice == marisol)
+        #expect(queue.currentIndex == 1)
+        #expect(queue.characterOffset == 0)
+        #expect(queue.status == .playing)
+    }
+
+    @Test("Late events from the utterance a voice change replaced do not advance")
+    func lateEventsAfterVoiceChange() {
+        var queue = playingQueue()
+        let replaced = queue.currentUtteranceID
+        _ = queue.setVoice(marisol)
+
+        #expect(queue.handle(event(replaced, .cancelled)) == [])
+        #expect(queue.handle(event(replaced, .finished)) == [])
+        #expect(queue.currentIndex == 0)
+        #expect(queue.status == .playing)
+    }
+
+    @Test("A voice change while paused stops the utterance; resume restarts the sentence with the new voice")
+    func voiceChangeWhilePaused() throws {
+        var queue = playingQueue(at: 1)
+        _ = queue.handle(event(queue.currentUtteranceID, .progress(characterOffset: utf16Offset(of: "ready", in: s1))))
+        _ = queue.pause()
+
+        #expect(queue.setVoice(marisol) == [.stop])
+        #expect(queue.status == .paused)
+        #expect(queue.currentUtteranceID == nil)
+
+        let commands = queue.resume()
+        let id = try #require(queue.currentUtteranceID)
+        #expect(commands == [.speak(text: s1, rate: .default, voice: marisol, utteranceID: id)])
+    }
+
+    @Test("After a rate change while paused, a voice change still restarts from the sentence start")
+    func voiceChangeAfterPausedRateChange() throws {
+        var queue = playingQueue(at: 1)
+        _ = queue.handle(event(queue.currentUtteranceID, .progress(characterOffset: utf16Offset(of: "ready", in: s1))))
+        _ = queue.pause()
+        _ = queue.faster()
+
+        #expect(queue.setVoice(marisol) == [])
+
+        let commands = queue.resume()
+        let id = try #require(queue.currentUtteranceID)
+        #expect(commands == [.speak(text: s1, rate: SpeechRate(1.25), voice: marisol, utteranceID: id)])
+    }
+
+    @Test("A voice change while idle or finished only stores the voice")
+    func voiceChangeWhenNotPlaying() throws {
+        var queue = PlaybackQueue()
+        _ = queue.load(sampleText)
+
+        #expect(queue.setVoice(samantha) == [])
+        #expect(queue.voice == samantha)
+
+        let commands = queue.play()
+        let id = try #require(queue.currentUtteranceID)
+        #expect(commands == [.speak(text: s0, rate: .default, voice: samantha, utteranceID: id)])
+
+        var finished = playingQueue(at: 3)
+        _ = finished.next()
+        #expect(finished.setVoice(marisol) == [])
+        #expect(finished.voice == marisol)
+        #expect(finished.status == .finished)
+    }
+
+    @Test("Setting the same voice does nothing; nil returns to the engine's default voice")
+    func sameVoiceAndNil() throws {
+        var queue = playingQueue()
+        _ = queue.setVoice(marisol)
+        let before = queue
+
+        #expect(queue.setVoice(marisol) == [])
+        #expect(queue == before)
+
+        let commands = queue.setVoice(nil)
+        let id = try #require(queue.currentUtteranceID)
+        #expect(commands == [.stop, .speak(text: s0, rate: .default, voice: nil, utteranceID: id)])
+    }
+}
+
 @Suite("PlaybackQueue stop")
 struct PlaybackQueueStopTests {
     @Test("stop returns to idle at the first sentence and emits stop", arguments: [0, 2])

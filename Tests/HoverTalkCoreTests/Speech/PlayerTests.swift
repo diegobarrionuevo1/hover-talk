@@ -6,7 +6,7 @@ import Testing
 @MainActor
 private final class FakeSpeechEngine: SpeechEngine {
     enum Call: Equatable {
-        case speak(text: String, rate: SpeechRate, utteranceID: UUID)
+        case speak(text: String, rate: SpeechRate, voice: VoiceDescriptor? = nil, utteranceID: UUID)
         case pause
         case resume
         case stop
@@ -17,20 +17,20 @@ private final class FakeSpeechEngine: SpeechEngine {
 
     var lastSpokenID: UUID? {
         for call in calls.reversed() {
-            if case .speak(_, _, let id) = call { return id }
+            if case .speak(_, _, _, let id) = call { return id }
         }
         return nil
     }
 
     var spokenTexts: [String] {
         calls.compactMap { call in
-            if case .speak(let text, _, _) = call { return text }
+            if case .speak(let text, _, _, _) = call { return text }
             return nil
         }
     }
 
-    func speak(_ text: String, rate: SpeechRate, utteranceID: UUID) {
-        calls.append(.speak(text: text, rate: rate, utteranceID: utteranceID))
+    func speak(_ text: String, rate: SpeechRate, voice: VoiceDescriptor?, utteranceID: UUID) {
+        calls.append(.speak(text: text, rate: rate, voice: voice, utteranceID: utteranceID))
     }
 
     func pause() { calls.append(.pause) }
@@ -169,6 +169,36 @@ struct PlayerTests {
         engine.emit(.finished, for: UUID())
 
         #expect(reportCount == 0)
+    }
+
+    @Test("setVoice restarts the current sentence with the new voice, and later sentences keep it")
+    func voiceChange() throws {
+        let paulina = VoiceDescriptor(id: "com.apple.voice.compact.es-MX.Paulina", name: "Paulina", language: "es-MX", quality: .default)
+        let player = Player(engine: engine)
+        player.load(text)
+        player.play()
+        engine.emit(.progress(characterOffset: 6), for: engine.lastSpokenID)
+        engine.clearCalls()
+
+        player.setVoice(paulina)
+        let restartID = try #require(engine.lastSpokenID)
+        #expect(engine.calls == [.stop, .speak(text: "Hola, este es el primer paso.", rate: .default, voice: paulina, utteranceID: restartID)])
+        #expect(player.voice == paulina)
+
+        engine.emit(.finished, for: restartID)
+        let nextID = try #require(engine.lastSpokenID)
+        #expect(engine.calls.last == .speak(text: "Then the second step runs.", rate: .default, voice: paulina, utteranceID: nextID))
+    }
+
+    @Test("A player created with a voice speaks with it")
+    func initialVoice() throws {
+        let samantha = VoiceDescriptor(id: "com.apple.voice.compact.en-US.Samantha", name: "Samantha", language: "en-US", quality: .default)
+        let player = Player(engine: engine, voice: samantha)
+        player.load(text)
+        player.play()
+
+        let id = try #require(engine.lastSpokenID)
+        #expect(engine.calls.last == .speak(text: "Hola, este es el primer paso.", rate: .default, voice: samantha, utteranceID: id))
     }
 
     @Test("Playback finishes after the last sentence and reports it")

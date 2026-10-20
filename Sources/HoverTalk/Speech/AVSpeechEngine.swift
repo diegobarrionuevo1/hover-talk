@@ -1,8 +1,8 @@
 import AVFoundation
 import HoverTalkCore
 
-/// `SpeechEngine` backed by `AVSpeechSynthesizer`. Utterances leave `voice` unset, so the
-/// synthesizer's default voice speaks.
+/// `SpeechEngine` backed by `AVSpeechSynthesizer`. Each utterance speaks with the system voice
+/// it is given (`AVSpeechEngine.synthesisVoice(for:)`), or with the synthesizer's default voice.
 @MainActor
 final class AVSpeechEngine: NSObject, SpeechEngine {
     var onEvent: ((SpeechEngineEvent) -> Void)?
@@ -20,11 +20,19 @@ final class AVSpeechEngine: NSObject, SpeechEngine {
         synthesizer.delegate = self
     }
 
-    func speak(_ text: String, rate: SpeechRate, utteranceID: UUID) {
+    func speak(_ text: String, rate: SpeechRate, voice: VoiceDescriptor?, utteranceID: UUID) {
         let utterance = AVSpeechUtterance(string: text)
         utterance.rate = Self.utteranceRate(for: rate)
+        utterance.voice = voice.flatMap(Self.synthesisVoice(for:))
         utteranceIDs[ObjectIdentifier(utterance)] = (utterance, utteranceID)
         synthesizer.speak(utterance)
+    }
+
+    /// The installed voice with the descriptor's identifier; when it was removed, a voice of the
+    /// same language; nil (the default voice) when neither exists or the voice is not a system one.
+    static func synthesisVoice(for voice: VoiceDescriptor) -> AVSpeechSynthesisVoice? {
+        guard voice.source == .system else { return nil }
+        return AVSpeechSynthesisVoice(identifier: voice.id) ?? AVSpeechSynthesisVoice(language: voice.language)
     }
 
     func pause() {

@@ -15,14 +15,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var readingSession: ReadingSession?
     private var picker: PickerController?
     private var pickerHotkey: GlobalHotkey?
+    private let voices = SystemVoiceProvider()
+    private let voiceMenu = VoiceMenu()
+    private var settingsWindow: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         TerminalAXSource.setMessagingTimeout(seconds: Self.axMessagingTimeout)
 
         let preferences = Preferences(storage: UserDefaultsSettingsStorage(defaults: .standard))
         self.preferences = preferences
-        let session = ReadingSession(player: Player(engine: AVSpeechEngine()), controller: ControllerPanel(), preferences: preferences)
+        let session = ReadingSession(
+            player: Player(engine: AVSpeechEngine(), rate: preferences.speechRate),
+            controller: ControllerPanel(),
+            preferences: preferences,
+            voices: voices
+        )
         readingSession = session
+        let settingsWindow = SettingsWindowController(
+            model: SettingsModel(preferences: preferences, voices: voices, readingSession: session),
+            voices: voices
+        )
+        self.settingsWindow = settingsWindow
+        session.onSettingsChange = { [weak settingsWindow] in
+            settingsWindow?.refresh()
+        }
+        voices.onChange = { [weak settingsWindow] in
+            settingsWindow?.refresh()
+        }
+        voiceMenu.onSelect = { [weak session, weak settingsWindow] selection in
+            session?.setVoiceSelection(selection)
+            settingsWindow?.refresh()
+        }
+        voiceMenu.onShowSettings = { [weak self] in
+            self?.showSettings()
+        }
         let picker = PickerController(readingSession: session, preferences: preferences)
         picker.onNeedsAccessibility = { [weak self] in
             self?.pickerNeedsAccessibility()
@@ -74,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         continueReadingMenuItem.target = self
         continueReadingMenuItem.action = #selector(toggleContinuousReading)
         menu.addItem(continueReadingMenuItem)
+        menu.addItem(voiceMenu.item)
         menu.addItem(.separator())
 
         statusMenuItem.target = self
@@ -98,6 +125,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let settingsItem = NSMenuItem(title: AppCopy.settingsMenuTitle, action: #selector(showSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
         let quitItem = NSMenuItem(
             title: AppCopy.quitMenuTitle,
             action: #selector(NSApplication.terminate(_:)),
@@ -112,13 +143,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// The controller's toggle changes the reading mode too, so the check mark is set each
-    /// time the menu opens.
+    /// time the menu opens. The voice list is read again too: voices may have been downloaded
+    /// since the menu last opened.
     func menuNeedsUpdate(_ menu: NSMenu) {
         continueReadingMenuItem.state = preferences?.readingMode == .continuous ? .on : .off
+        voices.refresh()
+        voiceMenu.update(
+            catalog: voices.catalog(),
+            selection: preferences?.voiceSelection ?? .default,
+            lastReadingLanguage: readingSession?.lastReadingLanguage
+        )
     }
 
     @objc private func toggleContinuousReading() {
         readingSession?.toggleReadingMode()
+    }
+
+    @objc private func showSettings() {
+        settingsWindow?.show()
     }
 
     private func apply(_ presentation: AccessibilityPresentation) {

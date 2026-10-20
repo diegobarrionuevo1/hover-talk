@@ -30,4 +30,37 @@ public enum AppCopy {
         """
     public static let onboardingOpenSettingsButton = "Open System Settings"
     public static let onboardingLaterButton = "Later"
+
+    // MARK: - Voices
+
+    public static let voiceMenuTitle = "Voice"
+    /// `VoiceSelection.automatic`, in the Voice menu and the Settings window.
+    public static let automaticVoiceTitle = "Automatic (best for the text's language)"
+    public static let moreVoicesMenuTitle = "More Voices in Settings…"
+    /// Opens `SystemSettingsLinks.spokenContent`.
+    public static let downloadMoreVoicesTitle = "Download More Voices…"
+    /// "Manage Voices…" is the voice picker's own item (macOS 26.2, TextToSpeechVoiceBankingUI).
+    public static let voiceQualityHint = """
+        Premium and Enhanced voices sound much better. Download them in System Settings > \
+        Accessibility > Spoken Content > System voice > Manage Voices…
+        """
+    /// The same hint in two short lines, for the Voice menu.
+    public static let voiceQualityMenuHint = """
+        Premium and Enhanced voices sound much better.
+        Download them in Spoken Content > System voice > Manage Voices…
+        """
+
+    // MARK: - Settings window
+
+    public static let settingsMenuTitle = "Settings…"
+    public static let settingsWindowTitle = "\(AppInfo.name) Settings"
+    public static let voiceSectionTitle = "Voice"
+    public static let voiceSearchPlaceholder = "Search voices or languages"
+    public static let previewVoiceButton = "Preview"
+    public static let speedSectionTitle = "Speed"
+    public static let readingSectionTitle = "Reading"
+    /// The toggle for `ReadingMode.continuous`.
+    public static let continuousReadingSettingTitle = "Continue reading below the picked paragraph"
+    public static let voiceServerSectionTitle = "Voice Server"
+    public static let voiceServerPlaceholder = "Not available yet. Reading with a speech server you host yourself comes in a later version."
 }

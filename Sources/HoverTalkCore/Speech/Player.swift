@@ -19,10 +19,13 @@ public final class Player {
     private var queue: PlaybackQueue
     private let engine: any SpeechEngine
 
+    /// The voice the player speaks with; nil for the engine's default voice.
+    public var voice: VoiceDescriptor? { queue.voice }
+
     /// Takes over the engine's `onEvent`.
-    public init(engine: any SpeechEngine, rate: SpeechRate = .default) {
+    public init(engine: any SpeechEngine, rate: SpeechRate = .default, voice: VoiceDescriptor? = nil) {
         self.engine = engine
-        let queue = PlaybackQueue(rate: rate)
+        let queue = PlaybackQueue(rate: rate, voice: voice)
         self.queue = queue
         state = Self.state(of: queue)
         engine.onEvent = { [weak self] event in
@@ -40,14 +43,15 @@ public final class Player {
     public func setRate(_ rate: SpeechRate) { apply { $0.setRate(rate) } }
     public func faster() { apply { $0.faster() } }
     public func slower() { apply { $0.slower() } }
+    public func setVoice(_ voice: VoiceDescriptor?) { apply { $0.setVoice(voice) } }
     public func stop() { apply { $0.stop() } }
 
     private func apply(_ operation: (inout PlaybackQueue) -> [SpeechCommand]) {
         let commands = operation(&queue)
         for command in commands {
             switch command {
-            case .speak(let text, let rate, let utteranceID):
-                engine.speak(text, rate: rate, utteranceID: utteranceID)
+            case .speak(let text, let rate, let voice, let utteranceID):
+                engine.speak(text, rate: rate, voice: voice, utteranceID: utteranceID)
             case .pause:
                 engine.pause()
             case .resume:

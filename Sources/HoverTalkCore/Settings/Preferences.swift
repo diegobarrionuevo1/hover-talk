@@ -25,6 +25,8 @@ public final class InMemorySettingsStorage: SettingsStorage {
 @MainActor
 public final class Preferences {
     public static let readingModeKey = "readingMode"
+    public static let voiceSelectionKey = "voiceSelection"
+    public static let speechRateKey = "speechRate"
 
     private let storage: any SettingsStorage
 
@@ -37,5 +39,19 @@ public final class Preferences {
     public var readingMode: ReadingMode {
         get { storage.string(forKey: Self.readingModeKey).flatMap(ReadingMode.init(rawValue:)) ?? .default }
         set { storage.setString(newValue.rawValue, forKey: Self.readingModeKey) }
+    }
+
+    /// Stored as `VoiceSelection.storedValue`; `.automatic` while nothing is stored. Whether the
+    /// chosen voice is still installed is checked when it is used (`VoiceCatalog.resolve`).
+    public var voiceSelection: VoiceSelection {
+        get { VoiceSelection(storedValue: storage.string(forKey: Self.voiceSelectionKey)) }
+        set { storage.setString(newValue.storedValue, forKey: Self.voiceSelectionKey) }
+    }
+
+    /// The rate the player starts with, stored as the multiplier's decimal text. A stored number
+    /// goes through `SpeechRate`'s clamping; normal speed while nothing, or no number, is stored.
+    public var speechRate: SpeechRate {
+        get { storage.string(forKey: Self.speechRateKey).flatMap(Double.init).map(SpeechRate.init) ?? .default }
+        set { storage.setString(String(newValue.multiplier), forKey: Self.speechRateKey) }
     }
 }

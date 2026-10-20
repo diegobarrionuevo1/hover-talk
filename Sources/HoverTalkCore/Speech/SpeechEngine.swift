@@ -9,7 +9,8 @@ public protocol SpeechEngine: AnyObject {
     /// Set by the player. Engines call it for every event of every utterance.
     var onEvent: ((SpeechEngineEvent) -> Void)? { get set }
 
-    func speak(_ text: String, rate: SpeechRate, utteranceID: UUID)
+    /// Speaks `text` with `voice`, or with the engine's default voice when `voice` is nil.
+    func speak(_ text: String, rate: SpeechRate, voice: VoiceDescriptor?, utteranceID: UUID)
     func pause()
     func resume()
     /// Cancels the current utterance. Late events for it may still arrive; the playback queue

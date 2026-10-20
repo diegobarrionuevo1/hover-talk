@@ -122,18 +122,25 @@ public struct ControllerPresentation: Equatable, Sendable {
             progressAccessibilityLabel = "No text loaded"
         }
 
-        let multiplier = Self.format(state.rate.multiplier)
-        rateText = "\(multiplier)×"
-        rateAccessibilityLabel = state.rate == .default ? "Normal speed" : "\(multiplier) times normal speed"
+        rateText = state.rate.displayText
+        rateAccessibilityLabel = state.rate == .default ? "Normal speed" : "\(state.rate.multiplierText) times normal speed"
     }
+}
 
-    /// Up to two fraction digits, no trailing zeros, and always "." as the decimal separator.
-    private static func format(_ multiplier: Double) -> String {
+extension SpeechRate {
+    /// The multiplier with up to two fraction digits, no trailing zeros, and always "." as the
+    /// decimal separator, for example "1.25".
+    public var multiplierText: String {
         multiplier.formatted(
             .number
                 .precision(.fractionLength(0...2))
                 .grouping(.never)
                 .locale(Locale(identifier: "en_US_POSIX"))
         )
+    }
+
+    /// `multiplierText` followed by "×", for example "1.25×".
+    public var displayText: String {
+        "\(multiplierText)×"
     }
 }

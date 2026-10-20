@@ -6,7 +6,7 @@ import Testing
 @MainActor
 private final class SilentSpeechEngine: SpeechEngine {
     var onEvent: ((SpeechEngineEvent) -> Void)?
-    func speak(_ text: String, rate: SpeechRate, utteranceID: UUID) {}
+    func speak(_ text: String, rate: SpeechRate, voice: VoiceDescriptor?, utteranceID: UUID) {}
     func pause() {}
     func resume() {}
     func stop() {}
