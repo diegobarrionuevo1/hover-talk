@@ -37,7 +37,11 @@ actor TerminalHoverResolver {
     /// The block under `point`, read as `mode` says (see `ParsedScreen.block(at:mode:)`).
     func lookup(at point: CGPoint, mode: ReadingMode) -> Lookup {
         read(at: point, terminal: { $0.block(at: point, mode: mode) }, accessible: { reader, root in
-            mode == .continuous ? reader.continuation(from: point, in: root) : reader.block(at: point, in: root)
+            // Outline only the pointed block, even in continuous mode, so a long page is not
+            // covered by one outline; the continuation is what a click reads.
+            guard let block = reader.block(at: point, in: root) else { return nil }
+            let read = mode == .continuous ? reader.continuation(from: point, in: root) ?? block : block
+            return (outline: block, read: read)
         })
     }
 
@@ -45,7 +49,7 @@ actor TerminalHoverResolver {
     /// (see `ParsedScreen.selection(from:to:)`).
     func selection(from start: CGPoint, to end: CGPoint) -> Lookup {
         read(at: start, terminal: { $0.selection(from: start, to: end) }, accessible: { reader, root in
-            reader.selection(from: start, to: end, in: root)
+            reader.selection(from: start, to: end, in: root).map { (outline: $0, read: $0) }
         })
     }
 
@@ -62,7 +66,7 @@ actor TerminalHoverResolver {
     private func read(
         at point: CGPoint,
         terminal: (ParsedScreen) -> TerminalTextBlock?,
-        accessible: (AXBlockReader, AXNode) -> AXBlock?
+        accessible: (AXBlockReader, AXNode) -> (outline: AXBlock, read: AXBlock)?
     ) -> Lookup {
         do throws(TerminalAXSource.Failure) {
             let screen = try TerminalAXSource.screen(at: point)
@@ -76,7 +80,7 @@ actor TerminalHoverResolver {
         }
     }
 
-    private func readAccessible(at point: CGPoint, _ find: (AXBlockReader, AXNode) -> AXBlock?) -> Lookup {
+    private func readAccessible(at point: CGPoint, _ find: (AXBlockReader, AXNode) -> (outline: AXBlock, read: AXBlock)?) -> Lookup {
         let area: (element: AXUIElement, pid: pid_t, hash: Int)
         do throws(AccessibleAXSource.Failure) {
             area = try AccessibleAXSource.area(at: point)
@@ -97,9 +101,9 @@ actor TerminalHoverResolver {
             current = AccessibleAXSource.snapshot(of: area)
             snapshot = (current, now)
         }
-        guard let block = find(blockReader, current.root), !block.rects.isEmpty,
-              !block.text.text.allSatisfy(\.isWhitespace)
+        guard let found = find(blockReader, current.root), !found.outline.rects.isEmpty,
+              !found.read.text.text.allSatisfy(\.isWhitespace)
         else { return .target(nil) }
-        return .target(HoverTarget(rects: block.rects, text: block.text.text))
+        return .target(HoverTarget(rects: found.outline.rects, text: found.read.text.text))
     }
 }

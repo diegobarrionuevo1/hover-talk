@@ -109,10 +109,37 @@ struct AXBlockReaderTests {
         #expect(reader.block(at: CGPoint(x: 60, y: 210), in: Trees.chat) == nil)
     }
 
-    @Test("Continuation reads down the web area, skips chrome and stops at the composer")
+    @Test("Continuation reads down to the end of the message: its row of action buttons")
     func continuation() throws {
         let text = try #require(reader.continuation(from: CGPoint(x: 60, y: 102), in: Trees.chat)).text.text
-        #expect(text == "First step.\nSecond step.\n```\nlet x = 1\n```\nBeta answer.")
+        #expect(text == "First step.\nSecond step.\n```\nlet x = 1\n```")
+    }
+
+    @Test("Continuation stops at the composer when no action row comes first")
+    func continuationStopsAtComposer() throws {
+        let root = AXNode(role: "AXWebArea", children: [
+            Trees.group([Trees.text("One.", 10)]),
+            AXNode(role: "AXButton", children: [Trees.text("Lone button", 30)]),
+            Trees.group([Trees.text("Two.", 50)]),
+            AXNode(role: "AXTextArea", text: "x", frame: CGRect(x: 20, y: 80, width: 300, height: 30), isEditable: true),
+            Trees.group([Trees.text("Three.", 120)]),
+        ])
+        #expect(reader.continuation(from: CGPoint(x: 30, y: 15), in: root)?.text.text == "One.\nTwo.")
+    }
+
+    @Test("A Gmail-like reply and forward row ends the email (buttons wrapping links)")
+    func gmailActionRow() throws {
+        let link: (String, CGFloat) -> AXNode = { title, x in
+            AXNode(role: "AXButton", children: [AXNode(role: "AXLink", children: [Trees.text(title, 200, x: x, width: 60)])])
+        }
+        let root = AXNode(role: "AXWebArea", children: [
+            Trees.group([Trees.text("Dear team,", 100)]),
+            Trees.group([Trees.text("Body paragraph.", 130)]),
+            Trees.group([link("Reply", 20), link("Forward", 90)]),
+            Trees.group([Trees.text("Footer text.", 300)]),
+        ])
+        #expect(reader.continuation(from: CGPoint(x: 30, y: 105), in: root)?.text.text == "Dear team,\nBody paragraph.")
+        #expect(reader.block(at: CGPoint(x: 30, y: 205), in: root) == nil)
     }
 
     @Test("Continuation never reads above the pointed block")

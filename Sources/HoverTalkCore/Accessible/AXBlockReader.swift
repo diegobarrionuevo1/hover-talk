@@ -63,6 +63,8 @@ public struct AXBlock: Equatable, Sendable {
 ///   consecutive inline children forms a block and the other children are walked the same way;
 ///   a container with bare text among its children also joins its formatting groups into the
 ///   run (see `walk`).
+/// - A row of two or more controls (see `isActionRow`) ends continuous reading like an
+///   editable input: it closes an email or a chat answer.
 /// - Code blocks read as a fenced block (```), so `TextCleaner` can replace them with
 ///   "Code omitted." or keep them, like terminal code fences.
 public struct AXBlockReader: Sendable {
@@ -180,6 +182,10 @@ public struct AXBlockReader: Sendable {
             result.append(.stop(area: area))
             return
         }
+        if Self.isActionRow(node) {
+            result.append(.stop(area: area))
+            return
+        }
         if Self.isChrome(node) { return }
         let area = Self.areaRoles.contains(node.role) ? path : area
         if node.isCode || Self.ownBlockRoles.contains(node.role) || Self.isInline(node) {
@@ -216,6 +222,20 @@ public struct AXBlockReader: Sendable {
 
     private static func isChrome(_ node: AXNode) -> Bool {
         chromeRoles.contains(node.role) || node.subrole.map(chromeSubroles.contains) == true
+    }
+
+    private static let controlRoles: Set<String> = [
+        "AXButton", "AXMenuButton", "AXPopUpButton", "AXCheckBox", "AXRadioButton",
+    ]
+
+    /// A row of two or more controls and nothing else, such as Gmail's Reply and Forward under
+    /// an email or the copy and retry buttons under a chat answer: the end of the text above it.
+    private static func isActionRow(_ node: AXNode) -> Bool {
+        func isControl(_ node: AXNode) -> Bool {
+            controlRoles.contains(node.role)
+                || (node.role == "AXGroup" && node.children.count == 1 && isControl(node.children[0]))
+        }
+        return node.children.count >= 2 && node.children.allSatisfy(isControl)
     }
 
     private static func isEditableInput(_ node: AXNode) -> Bool {
