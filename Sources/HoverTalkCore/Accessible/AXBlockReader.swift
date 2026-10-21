@@ -58,9 +58,11 @@ public struct AXBlock: Equatable, Sendable {
 ///   transcript, so continuous reading ends there.
 /// - A heading, list item, table cell, non-editable text area or field, or a code element forms
 ///   its own block.
-/// - Otherwise a container whose descendants are all inline (static text, links, images and
-///   groups of those) forms one block. In a mixed container, each run of consecutive inline
-///   children forms a block and the other children are walked the same way.
+/// - Otherwise a container whose descendants are all inline (static text, links, images, list
+///   markers and groups of those) forms one block. In a mixed container, each run of
+///   consecutive inline children forms a block and the other children are walked the same way;
+///   a container with bare text among its children also joins its formatting groups into the
+///   run (see `walk`).
 /// - Code blocks read as a fenced block (```), so `TextCleaner` can replace them with
 ///   "Code omitted." or keep them, like terminal code fences.
 public struct AXBlockReader: Sendable {
@@ -80,7 +82,8 @@ public struct AXBlockReader: Sendable {
     ]
     private static let inputRoles: Set<String> = ["AXTextArea", "AXTextField", "AXComboBox", "AXSearchField"]
     private static let ownBlockRoles: Set<String> = ["AXHeading", "AXListItem", "AXCell", "AXTextArea", "AXTextField"]
-    private static let inlineRoles: Set<String> = ["AXStaticText", "AXLink", "AXImage"]
+    /// `AXListMarker` (the "1." or bullet Chromium exposes per list item) is inline but never read.
+    private static let inlineRoles: Set<String> = ["AXStaticText", "AXLink", "AXImage", "AXListMarker"]
     /// Roles whose descendants are read as a separate reading area.
     private static let areaRoles: Set<String> = ["AXWebArea", "AXScrollArea"]
 
@@ -183,6 +186,12 @@ public struct AXBlockReader: Sendable {
             if let block = Self.block(node, path: path) { result.append(.block(block, area: area)) }
             return
         }
+        // A container with bare text or links among its children is a text container (a
+        // paragraph or list item with inline formatting, as Chromium exposes `<li>` with
+        // `<strong>`): its inline children, formatting groups included, join one run, and
+        // controls inside the text (such as a citation button) are skipped without ending it.
+        // In any other container an inline group is a paragraph of its own.
+        let isTextContainer = node.children.contains(where: Self.isInlineLeafRun)
         var run: [Int] = []
         func flush() {
             guard !run.isEmpty else { return }
@@ -193,8 +202,10 @@ public struct AXBlockReader: Sendable {
             run = []
         }
         for (index, child) in node.children.enumerated() {
-            if Self.isInlineLeafRun(child) {
+            if Self.isInlineLeafRun(child) || (isTextContainer && Self.isInline(child)) {
                 run.append(index)
+            } else if isTextContainer && Self.isChrome(child) {
+                continue
             } else {
                 flush()
                 walk(child, path: path + [index], area: area, into: &result)
@@ -226,7 +237,7 @@ public struct AXBlockReader: Sendable {
 
     /// The text-bearing leaves under `node`, in tree order, skipping chrome.
     private static func pieces(of node: AXNode, path: [Int]) -> [Piece] {
-        if isChrome(node) || isEditableInput(node) { return [] }
+        if isChrome(node) || isEditableInput(node) || node.role == "AXListMarker" { return [] }
         if node.children.isEmpty || inputRoles.contains(node.role) {
             guard let text = node.text, !text.isEmpty else { return [] }
             return [Piece(text: text, path: path, frame: node.frame)]
@@ -328,5 +339,15 @@ public struct AXBlockReader: Sendable {
             text.append(block.text)
         }
         return AXBlock(text: text, rects: blocks.flatMap(\.rects), path: blocks[0].path)
+    }
+}
+
+/// Whether a web element is a code block, from its DOM class list (`AXDOMClassList`).
+///
+/// Only explicit highlighter and language classes count. A substring test for "code" is wrong:
+/// Claude's desktop app tags plain prose with `[unicode-bidi:plaintext]` (probe, 2026-10-21).
+public enum AXCodeHint {
+    public static func isCode(domClasses: [String]) -> Bool {
+        domClasses.contains { $0.hasPrefix("language-") || $0 == "hljs" || $0 == "code-block" }
     }
 }

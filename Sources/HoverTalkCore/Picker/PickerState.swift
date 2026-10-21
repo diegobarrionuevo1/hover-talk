@@ -22,6 +22,15 @@ public struct HoverTarget: Equatable, Sendable {
         block = nil
     }
 
+    /// A target outlined as `rects` (such as an accessibility block's text frames), spanning
+    /// their union; `rects` must not be empty.
+    public init(rects: [CGRect], text: String) {
+        rect = rects.dropFirst().reduce(rects[0]) { $0.union($1) }
+        self.rects = rects
+        self.text = text
+        block = nil
+    }
+
     public init(_ block: TerminalTextBlock) {
         rect = block.rect
         rects = block.rects

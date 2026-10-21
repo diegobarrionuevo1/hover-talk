@@ -1,7 +1,11 @@
+import ApplicationServices
 import CoreGraphics
+import Foundation
 import HoverTalkCore
 
-/// Finds terminal text under a point, or dragged over, away from the main thread: each AX
+/// Finds text under a point, or dragged over, away from the main thread: terminal text areas
+/// first (`TerminalAXSource`), and any other app through its accessibility tree
+/// (`AccessibleAXSource`, `AXBlockReader`). Each AX
 /// call waits for the terminal to answer (up to the messaging timeout `AppDelegate` sets), and
 /// parsing a changed screen takes milliseconds. One lookup runs at a time, since this is an
 /// actor and none of its methods suspends; `PickerController` and the `ReadingHighlighter` it
@@ -21,16 +25,28 @@ actor TerminalHoverResolver {
     }
 
     private var cache = ScreenBlockCache()
+    private let blockReader = AXBlockReader()
+    /// The last accessibility snapshot, reused while the pointer stays over the same area for
+    /// `snapshotLifetime`: hover lookups run several times a second, and a snapshot of a chat
+    /// transcript costs tens of milliseconds.
+    private var snapshot: (value: AccessibleAXSource.Snapshot, time: Date)?
+    private static let snapshotLifetime: TimeInterval = 1.5
+    /// Apps already asked to build their web accessibility tree.
+    private var webAccessibilityRequested = Set<pid_t>()
 
     /// The block under `point`, read as `mode` says (see `ParsedScreen.block(at:mode:)`).
     func lookup(at point: CGPoint, mode: ReadingMode) -> Lookup {
-        read(at: point) { $0.block(at: point, mode: mode) }
+        read(at: point, terminal: { $0.block(at: point, mode: mode) }, accessible: { reader, root in
+            mode == .continuous ? reader.continuation(from: point, in: root) : reader.block(at: point, in: root)
+        })
     }
 
     /// The text dragged over from `start` to `end`, on the terminal text area under `start`
     /// (see `ParsedScreen.selection(from:to:)`).
     func selection(from start: CGPoint, to end: CGPoint) -> Lookup {
-        read(at: start) { $0.selection(from: start, to: end) }
+        read(at: start, terminal: { $0.selection(from: start, to: end) }, accessible: { reader, root in
+            reader.selection(from: start, to: end, in: root)
+        })
     }
 
     /// The terminal screen at `point`, parsed through the same cache as `lookup(at:mode:)`, or
@@ -40,15 +56,50 @@ actor TerminalHoverResolver {
         return cache.screen(value: screen.value, frame: screen.frame)
     }
 
-    /// `find` on the parsed screen of the terminal text area at `point`.
-    private func read(at point: CGPoint, _ find: (ParsedScreen) -> TerminalTextBlock?) -> Lookup {
+    /// `terminal` on the parsed screen of the terminal text area at `point`; when the element
+    /// there is not a terminal text area, `accessible` on the accessibility snapshot of its
+    /// reading area.
+    private func read(
+        at point: CGPoint,
+        terminal: (ParsedScreen) -> TerminalTextBlock?,
+        accessible: (AXBlockReader, AXNode) -> AXBlock?
+    ) -> Lookup {
         do throws(TerminalAXSource.Failure) {
             let screen = try TerminalAXSource.screen(at: point)
-            return .target(find(cache.screen(value: screen.value, frame: screen.frame)).map { HoverTarget($0) })
+            return .target(terminal(cache.screen(value: screen.value, frame: screen.frame)).map { HoverTarget($0) })
         } catch .notTrusted {
             return .notTrusted
+        } catch .notATextArea {
+            return readAccessible(at: point, accessible)
         } catch {
             return .unreadable(error)
         }
+    }
+
+    private func readAccessible(at point: CGPoint, _ find: (AXBlockReader, AXNode) -> AXBlock?) -> Lookup {
+        let area: (element: AXUIElement, pid: pid_t, hash: Int)
+        do throws(AccessibleAXSource.Failure) {
+            area = try AccessibleAXSource.area(at: point)
+        } catch .notTrusted {
+            return .notTrusted
+        } catch {
+            return .target(nil)
+        }
+        if webAccessibilityRequested.insert(area.pid).inserted {
+            PickerLog.webAccessibilityRequested(results: AccessibleAXSource.requestWebAccessibility(pid: area.pid))
+        }
+        let now = Date()
+        let current: AccessibleAXSource.Snapshot
+        if let cached = snapshot, cached.value.pid == area.pid, cached.value.areaHash == area.hash,
+           now.timeIntervalSince(cached.time) < Self.snapshotLifetime {
+            current = cached.value
+        } else {
+            current = AccessibleAXSource.snapshot(of: area)
+            snapshot = (current, now)
+        }
+        guard let block = find(blockReader, current.root), !block.rects.isEmpty,
+              !block.text.text.allSatisfy(\.isWhitespace)
+        else { return .target(nil) }
+        return .target(HoverTarget(rects: block.rects, text: block.text.text))
     }
 }

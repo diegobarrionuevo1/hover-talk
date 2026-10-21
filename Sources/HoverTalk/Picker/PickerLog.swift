@@ -50,4 +50,9 @@ enum PickerLog {
     static func unavailableAlert(_ reason: PickerUnavailableReason, isTrusted: Bool) {
         logger.error("picker unavailable alert: \(reason.rawValue, privacy: .public), AXIsProcessTrusted \(isTrusted, privacy: .public)")
     }
+
+    /// The AXError raw values of asking an app for its web accessibility tree (0 is success).
+    static func webAccessibilityRequested(results: [Int32]) {
+        logger.notice("web accessibility requested, AX errors \(results.map(String.init).joined(separator: ","), privacy: .public)")
+    }
 }

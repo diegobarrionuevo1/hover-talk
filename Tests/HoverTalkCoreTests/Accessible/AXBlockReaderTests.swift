@@ -144,6 +144,37 @@ struct AXBlockReaderTests {
             == reader.selection(from: start, to: end, in: Trees.chat)?.text.text)
     }
 
+    @Test("A Chromium list item with inline formatting groups reads as one block (probe shape)")
+    func chromiumListItem() {
+        // Shape seen in Claude's desktop app: AXList > AXGroup > [AXListMarker, AXGroup, AXStaticText, …].
+        let root = AXNode(role: "AXWebArea", children: [
+            AXNode(role: "AXList", children: [
+                Trees.group([
+                    AXNode(role: "AXListMarker", text: "1.", frame: CGRect(x: 0, y: 10, width: 10, height: 18)),
+                    Trees.group([Trees.text("Bold", 10, width: 30)]),
+                    Trees.text(" rest of item", 10, x: 50, width: 100),
+                    AXNode(role: "AXButton", children: [Trees.text("cite", 10, x: 150, width: 20)]),
+                    Trees.group([Trees.text("code", 10, x: 170, width: 30)]),
+                    Trees.text(" end.", 10, x: 200, width: 30),
+                ]),
+                Trees.group([Trees.text("Second item.", 40)]),
+            ]),
+        ])
+        #expect(reader.blocks(in: root).map(\.text.text) == ["Bold rest of item code end.", "Second item."])
+    }
+
+    @Test("Sibling paragraph groups under a message stay separate blocks (probe shape)")
+    func siblingParagraphs() {
+        let root = AXNode(role: "AXWebArea", children: [
+            Trees.group([
+                AXNode(role: "AXHeading", children: [Trees.text("Head", 10)]),
+                Trees.group([Trees.text("One.", 40)]),
+                Trees.group([Trees.text("Two.", 70)]),
+            ]),
+        ])
+        #expect(reader.blocks(in: root).map(\.text.text) == ["Head", "One.", "Two."])
+    }
+
     @Test("Continuation stays in the pointed reading area")
     func continuationStaysInArea() throws {
         let window = AXNode(role: "AXWindow", children: [
@@ -158,5 +189,35 @@ struct AXBlockReaderTests {
     @Test("A selection over chrome only reads nothing")
     func emptySelection() {
         #expect(reader.selection(from: CGPoint(x: 30, y: 182), to: CGPoint(x: 60, y: 200), in: Trees.chat) == nil)
+    }
+}
+
+@Suite("AXCodeHint")
+struct AXCodeHintTests {
+    @Test("Highlighter and language classes mark a code block")
+    func codeClasses() {
+        #expect(AXCodeHint.isCode(domClasses: ["language-swift"]))
+        #expect(AXCodeHint.isCode(domClasses: ["hljs", "x"]))
+        #expect(AXCodeHint.isCode(domClasses: ["code-block"]))
+    }
+
+    @Test("Utility classes that merely contain the letters code do not")
+    func notCode() {
+        #expect(!AXCodeHint.isCode(domClasses: ["[unicode-bidi:plaintext]", "text-body"]))
+        #expect(!AXCodeHint.isCode(domClasses: ["inline-code-like"]))
+        #expect(!AXCodeHint.isCode(domClasses: []))
+    }
+}
+
+@Suite("HoverTarget from rects")
+struct HoverTargetRectsTests {
+    @Test("A target given as several rects outlines each and spans their union")
+    func rects() {
+        let a = CGRect(x: 0, y: 0, width: 10, height: 10)
+        let b = CGRect(x: 20, y: 30, width: 10, height: 10)
+        let target = HoverTarget(rects: [a, b], text: "t")
+        #expect(target.rects == [a, b])
+        #expect(target.rect == CGRect(x: 0, y: 0, width: 30, height: 40))
+        #expect(target.block == nil)
     }
 }
