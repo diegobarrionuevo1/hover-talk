@@ -48,7 +48,8 @@ struct ContinuousReadingTests {
         #expect(paragraphs.map(\.rows) == [11...13, 17...24, 26...27, 30...30, 32...32])
         #expect(result.text == paragraphs.map(\.text).joined(separator: "\n"))
         #expect(result.rows == 11...32)
-        #expect(result.rects == paragraphs.map(\.rect))
+        #expect(result.rects == [paragraphs[0].rect])
+        #expect(result.paragraphRows == paragraphs.map(\.rows))
         for fragment in leftPaneOutside {
             #expect(!result.text.contains(fragment), "contains \(fragment)")
         }
@@ -92,7 +93,8 @@ struct ContinuousReadingTests {
             The notes now list the **three beds**. The lawn section is unchanged.
             """)
         #expect(result.rows == 8...23)
-        #expect(result.rects.count == 3)
+        #expect(result.rects.count == 1)
+        #expect(result.paragraphRows.count == 3)
         #expect(!result.text.contains("Thinking"))
         #expect(!result.text.contains("ask about the pond"))
     }

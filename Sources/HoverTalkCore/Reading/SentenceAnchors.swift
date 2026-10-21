@@ -12,15 +12,45 @@ public struct SentenceAnchors<Anchor: Equatable & Sendable>: Equatable, Sendable
     public let sentences: [String]
     /// Per sentence, every Character of the sentence string with its anchor, if any.
     private let characters: [[(character: Character, anchor: Anchor?)]]
+    /// The indices of the sentences that end a paragraph, ascending; empty without paragraph
+    /// information. Paragraph reading stops at one of them (see `paragraphEnd(atOrAfter:)`).
+    public let paragraphEnds: [Int]
 
-    public init(_ cleaned: MappedText<Anchor>, splitter: SentenceSplitter = SentenceSplitter()) {
+    /// `paragraph` tells which paragraph an anchor was read from; a sentence belongs to the
+    /// paragraph of its first anchored Character, or of the sentence before it when it has none.
+    public init(
+        _ cleaned: MappedText<Anchor>,
+        splitter: SentenceSplitter = SentenceSplitter(),
+        paragraph: ((Anchor) -> Int?)? = nil
+    ) {
         let text = cleaned.text
         let ranges = splitter.ranges(in: text)
         sentences = ranges.map { String(text[$0]) }
         let pairs = Array(zip(text.indices, cleaned.elements.map(\.1)))
-        characters = ranges.map { range in
-            pairs.filter { range.contains($0.0) }.map { (text[$0.0], $0.1) }
+        let characters = ranges.map { range in
+            pairs.filter { range.contains($0.0) }.map { (character: text[$0.0], anchor: $0.1) }
         }
+        self.characters = characters
+        guard let paragraph else {
+            paragraphEnds = []
+            return
+        }
+        var owners: [Int?] = []
+        for sentence in characters {
+            let own = sentence.lazy.compactMap { $0.anchor.flatMap(paragraph) }.first
+            owners.append(own ?? owners.last ?? nil)
+        }
+        guard owners.contains(where: { $0 != nil }) else {
+            paragraphEnds = []
+            return
+        }
+        paragraphEnds = owners.indices.filter { $0 == owners.count - 1 || owners[$0 + 1] != owners[$0] }
+    }
+
+    /// The first paragraph end at or after sentence `index`: where paragraph reading of the
+    /// paragraph holding `index` stops. `nil` without paragraph information.
+    public func paragraphEnd(atOrAfter index: Int) -> Int? {
+        paragraphEnds.first { $0 >= index }
     }
 
     /// The anchored, non-whitespace Characters of sentence `index`, in order.
@@ -58,6 +88,7 @@ public struct SentenceAnchors<Anchor: Equatable & Sendable>: Equatable, Sendable
 
     public static func == (lhs: SentenceAnchors, rhs: SentenceAnchors) -> Bool {
         lhs.sentences == rhs.sentences
+            && lhs.paragraphEnds == rhs.paragraphEnds
             && lhs.characters.count == rhs.characters.count
             && zip(lhs.characters, rhs.characters).allSatisfy { a, b in
                 a.count == b.count && zip(a, b).allSatisfy { $0.character == $1.character && $0.anchor == $1.anchor }

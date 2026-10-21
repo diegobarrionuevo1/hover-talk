@@ -35,6 +35,8 @@ final class ReadingSession {
     private let highlighter = ReadingHighlighter()
     private let accessibleHighlighter = AccessibleReadingHighlighter()
     /// Marks to start with the next reading that `start` begins (see `read(accessibleText:…)`).
+    /// Paragraph ends of the reading `start` begins next.
+    private var nextParagraphEnds: [Int] = []
     private var pendingAccessibleMarks: (anchors: SentenceAnchors<AXTextAnchor>, point: CGPoint)?
     private let languageDetector = LanguageDetector()
     /// Identifies the latest `read` call, so a reading that waited for the voice server does not
@@ -81,8 +83,9 @@ final class ReadingSession {
         renderController(player.state)
     }
 
-    /// Switches between continuous and paragraph reading. Only later picks read with the new
-    /// mode: a document being read was already read from the screen and goes on unchanged.
+    /// Switches between continuous and paragraph reading, also while reading: a pick reads its
+    /// whole continuation, and paragraph reading only stops playback at the end of the
+    /// paragraph being read (`applyReadingLimit()`).
     func toggleReadingMode() {
         setReadingMode(preferences.readingMode.toggled)
     }
@@ -90,6 +93,7 @@ final class ReadingSession {
     func setReadingMode(_ mode: ReadingMode) {
         guard mode != preferences.readingMode else { return }
         preferences.readingMode = mode
+        applyReadingLimit()
         renderController(player.state)
         onSettingsChange?()
     }
@@ -142,6 +146,7 @@ final class ReadingSession {
     func read(_ text: String) {
         highlighter.end()
         endAccessibleMarks()
+        nextParagraphEnds = []
         begin(text: text, highlight: nil)
     }
 
@@ -151,7 +156,23 @@ final class ReadingSession {
         highlighter.end()
         endAccessibleMarks()
         pendingAccessibleMarks = (anchors, point)
+        nextParagraphEnds = anchors.paragraphEnds
         begin(text: text, highlight: nil)
+    }
+
+    /// The paragraph ends of the reading in progress (see `SentenceAnchors.paragraphEnds`);
+    /// empty for text without paragraphs, such as a selection, which is always read whole.
+    private var paragraphEnds: [Int] = []
+
+    /// In paragraph mode, stops playback at the end of the paragraph being read; in continuous
+    /// mode, reads to the end.
+    private func applyReadingLimit() {
+        guard preferences.readingMode == .paragraph, !paragraphEnds.isEmpty else {
+            player.setLastIndex(nil)
+            return
+        }
+        let current = player.state.currentIndex
+        player.setLastIndex(paragraphEnds.first { $0 >= current } ?? paragraphEnds.last)
     }
 
     private func endAccessibleMarks() {
@@ -164,6 +185,7 @@ final class ReadingSession {
     /// (both use `SentenceSplitter`), so its sentence index is the document's.
     func read(document: ReadingDocument, screenSource: ReadingScreenSource) {
         endAccessibleMarks()
+        nextParagraphEnds = document.anchors.paragraphEnds
         begin(text: document.text, highlight: (document, screenSource))
     }
 
@@ -212,6 +234,8 @@ final class ReadingSession {
         engine.beginReading(usePrimary: useRemote)
 
         player.load(text)
+        paragraphEnds = nextParagraphEnds
+        applyReadingLimit()
         player.setVoice(useRemote ? remoteVoiceForReading : resolvedSystemVoice())
         if let highlight {
             highlighter.begin(highlight.0, source: highlight.1)

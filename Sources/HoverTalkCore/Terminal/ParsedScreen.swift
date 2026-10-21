@@ -9,6 +9,8 @@ public struct ParsedPane: Sendable {
     /// One entry per row of the pane: its content, or `nil` for a row that is blank or chrome.
     /// Empty when `profile` is `nil`.
     let readRows: [ReadRow?]
+    /// The pane-relative rows the profile marks `.end`: continuous reading stops at them.
+    var endRows: Set<Int> = []
 
     /// The profile's type name, such as `OpenCodeProfile`.
     public var profileName: String? {
@@ -53,6 +55,7 @@ public struct ParsedScreen: Sendable {
             let paneLines = pane.rows.map { grid.text(row: $0, in: pane.columns) }
             let profile = profileForPane(paneLines)
             let roles = profile.roles(ofPane: paneLines)
+            let endRows = Set(roles.indices.filter { roles[$0] == .end })
             let readRows: [ReadRow?] = paneLines.indices.map { index in
                 // Defensive: a profile that returns fewer roles than rows leaves the rest unread.
                 guard roles.indices.contains(index), case let .content(content, columns) = roles[index] else { return nil }
@@ -60,7 +63,7 @@ public struct ParsedScreen: Sendable {
                 guard !text.isEmpty, let screenColumns = Self.screenColumns(columns, in: pane) else { return nil }
                 return ReadRow(text: text, columns: screenColumns)
             }
-            return ParsedPane(pane: pane, kind: .program, profile: profile, readRows: readRows)
+            return ParsedPane(pane: pane, kind: .program, profile: profile, readRows: readRows, endRows: endRows)
         }
     }
 
@@ -105,7 +108,7 @@ public struct ParsedScreen: Sendable {
         var paragraphs = [first]
         if mode == .continuous {
             var index = pointedRange.upperBound + 1
-            while index < readRows.count {
+            while index < readRows.count, !parsed.endRows.contains(index) {
                 guard readRows[index] != nil else {
                     index += 1
                     continue
@@ -116,9 +119,11 @@ public struct ParsedScreen: Sendable {
                 index = range.upperBound + 1
             }
         }
+        // The outline is the pointed paragraph only, so a long continuation does not cover the
+        // pane; the text and the anchor hold every paragraph read.
         return block(
             paragraphs,
-            rects: paragraphs.map { geometry.rect(rows: $0.rows, columns: $0.columns) },
+            rects: [geometry.rect(rows: first.rows, columns: first.columns)],
             paneColumns: parsed.pane.columns
         )
     }
@@ -164,7 +169,10 @@ public struct ParsedScreen: Sendable {
         }
         endPiece()
         let spans = pieces.flatMap(\.spans)
-        return block(pieces, rects: spans.map { geometry.rect(rows: $0.row...$0.row, columns: $0.columns) }, paneColumns: pane.columns)
+        return block(
+            pieces, rects: spans.map { geometry.rect(rows: $0.row...$0.row, columns: $0.columns) },
+            paneColumns: pane.columns, isSelection: true
+        )
     }
 
     // MARK: Building blocks
@@ -192,7 +200,10 @@ public struct ParsedScreen: Sendable {
     }
 
     /// The pieces joined with a newline into one block; `nil` without pieces.
-    private func block(_ pieces: [Piece], rects: [CGRect], paneColumns: ClosedRange<Int>) -> TerminalTextBlock? {
+    /// A selection keeps no paragraph rows, so paragraph reading never cuts it short.
+    private func block(
+        _ pieces: [Piece], rects: [CGRect], paneColumns: ClosedRange<Int>, isSelection: Bool = false
+    ) -> TerminalTextBlock? {
         let spans = pieces.flatMap(\.spans)
         guard let anchor = ReadingAnchor(grid: grid, spans: spans, paneColumns: paneColumns) else { return nil }
         var text = MappedText<CellPosition>()
@@ -206,7 +217,11 @@ public struct ParsedScreen: Sendable {
             columns: anchor.columns,
             rect: geometry.rect(rows: anchor.rows, columns: anchor.columns),
             rects: rects,
-            anchor: anchor
+            anchor: anchor,
+            paragraphRows: isSelection ? [] : pieces.compactMap { piece in
+                guard let top = piece.spans.first?.row, let bottom = piece.spans.last?.row else { return nil }
+                return top...bottom
+            }
         )
     }
 

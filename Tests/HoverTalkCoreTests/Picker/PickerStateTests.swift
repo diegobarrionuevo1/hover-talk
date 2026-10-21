@@ -140,9 +140,10 @@ struct PickerStateTests {
 
         let effects = state.handle(.click)
 
-        let document = ReadingDocument(TextCleaner().clean(block.mappedText))
+        let document = ReadingDocument(TextCleaner().clean(block.mappedText)) { block.paragraph(ofRow: $0.row) }
         #expect(effects == [.stopCapture, .hideOverlay, .readBlock(document, anchor: anchor)])
         #expect(document.text == "The notes now list the three beds. The lawn section is unchanged.")
+        #expect(document.anchors.paragraphEnds == [1])
         #expect(!document.spans.isEmpty)
         #expect(state.phase == .idle)
     }
@@ -155,14 +156,14 @@ struct PickerStateTests {
         #expect(state.handle(.click).last == .read("Raw text."))
     }
 
-    @Test("A block of several paragraphs is outlined paragraph by paragraph")
-    func hoverOutlinesEveryParagraph() throws {
+    @Test("A block of several paragraphs outlines only the pointed one")
+    func hoverOutlinesPointedParagraph() throws {
         let screen = try FixtureScreen("synthetic-claude-code")
         let block = try #require(ParsedScreen(lines: screen.lines, frame: screen.frame)
             .block(at: screen.center(row: 8, column: 10), mode: .continuous))
         var state = picking()
 
-        #expect(block.rects.count == 3)
+        #expect(block.rects.count == 1)
         #expect(state.handle(.hoverChanged(HoverTarget(block))) == [.highlight(block.rects)])
     }
 

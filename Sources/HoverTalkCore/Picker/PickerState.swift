@@ -17,6 +17,8 @@ public struct HoverTarget: Equatable, Sendable {
     /// The accessibility text the target was found as, each Character anchored to its node, so
     /// a click can read it with an on-screen highlight; `nil` otherwise.
     public let accessible: MappedText<AXTextAnchor>?
+    /// With `accessible`: the node path of each paragraph read (see `AXBlock.paragraphPaths`).
+    public let paragraphPaths: [[Int]]
 
     public init(rect: CGRect, text: String) {
         self.rect = rect
@@ -24,16 +26,18 @@ public struct HoverTarget: Equatable, Sendable {
         self.text = text
         block = nil
         accessible = nil
+        paragraphPaths = []
     }
 
     /// A target outlined as `rects` (such as an accessibility block's text frames), spanning
     /// their union; `rects` must not be empty. `accessible` is the anchored text, when known.
-    public init(rects: [CGRect], text: String, accessible: MappedText<AXTextAnchor>? = nil) {
+    public init(rects: [CGRect], text: String, accessible: MappedText<AXTextAnchor>? = nil, paragraphPaths: [[Int]] = []) {
         rect = rects.dropFirst().reduce(rects[0]) { $0.union($1) }
         self.rects = rects
         self.text = text
         block = nil
         self.accessible = accessible
+        self.paragraphPaths = paragraphPaths
     }
 
     public init(_ block: TerminalTextBlock) {
@@ -42,6 +46,7 @@ public struct HoverTarget: Equatable, Sendable {
         text = block.text
         self.block = block
         accessible = nil
+        paragraphPaths = []
     }
 
     /// Compares rect and text only, so a target found again on an unchanged block is the same
@@ -187,11 +192,16 @@ public struct PickerState: Sendable {
     private func read(_ target: HoverTarget) -> PickerEffect? {
         guard let text = spokenText(of: target) else { return nil }
         if let block = target.block, let anchor = block.anchor {
-            return .readBlock(ReadingDocument(cleaner.clean(block.mappedText)), anchor: anchor)
+            let document = ReadingDocument(cleaner.clean(block.mappedText)) { block.paragraph(ofRow: $0.row) }
+            return .readBlock(document, anchor: anchor)
         }
         if let accessible = target.accessible {
             let cleaned = cleaner.clean(accessible)
-            return .readAccessible(text: cleaned.text, anchors: SentenceAnchors(cleaned))
+            let paths = target.paragraphPaths
+            let anchors = SentenceAnchors(cleaned) { anchor in
+                paths.isEmpty ? nil : paths.firstIndex { anchor.path.starts(with: $0) }
+            }
+            return .readAccessible(text: cleaned.text, anchors: anchors)
         }
         return .read(text)
     }

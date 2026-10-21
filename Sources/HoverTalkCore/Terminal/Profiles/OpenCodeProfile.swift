@@ -27,7 +27,8 @@ public struct OpenCodeProfile: TUIProfile {
     /// Chrome: the input box (the last row starting with `╹▀`, every row below it, and the `┃`
     /// rows directly above it up to the first row without one); running tool blocks (a row
     /// starting with a braille spinner or `⏳`, and the deeper-indented rows right under it);
-    /// rows starting with `▣` or a key such as `ctrl+`; rows of only progress glyphs.
+    /// rows starting with `▣` (the message footer, returned as `.end`) or a key such as
+    /// `ctrl+`; rows of only progress glyphs.
     /// Content: the cells left of the sidebar (see `sidebarColumn(in:)`), after a leading `┃`
     /// gutter when there is one, with trailing spaces trimmed.
     public func roles(ofPane paneLines: [String]) -> [LineRole] {
@@ -56,7 +57,10 @@ public struct OpenCodeProfile: TUIProfile {
                 toolColumn = nil
             }
         }
-        return rows.indices.map { chrome[$0] ? .chrome : rows[$0].content(in: grid) }
+        return rows.indices.map { index in
+            if rows[index].isMessageFooter { return .end }
+            return chrome[index] ? .chrome : rows[index].content(in: grid)
+        }
     }
 
     // MARK: Rows
@@ -84,6 +88,9 @@ public struct OpenCodeProfile: TUIProfile {
             guard let first = trimmed.first else { return false }
             return first == "\u{23F3}" || OpenCodeProfile.isBraille(first)
         }
+
+        /// The `▣ agent · model · time` footer under an answer: the end of that message.
+        var isMessageFooter: Bool { trimmed.hasPrefix("\u{25A3}") }
 
         var isChromeOnItsOwn: Bool {
             trimmed.hasPrefix("\u{25A3}")

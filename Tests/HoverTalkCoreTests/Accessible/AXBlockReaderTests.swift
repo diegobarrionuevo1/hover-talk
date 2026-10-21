@@ -280,3 +280,60 @@ struct AccessibleReadTests {
         #expect(state.handle(.click).last == .read("Hello."))
     }
 }
+
+@Suite("Paragraphs of joined accessibility blocks")
+struct AXParagraphTests {
+    let root = AXNode(role: "AXWebArea", children: [
+        AXNode(role: "AXGroup", children: [AXNode(role: "AXStaticText", text: "One a. One b.", frame: CGRect(x: 0, y: 0, width: 100, height: 18))]),
+        AXNode(role: "AXGroup", children: [AXNode(role: "AXStaticText", text: "Two.", frame: CGRect(x: 0, y: 30, width: 100, height: 18))]),
+    ])
+
+    @Test("A continuation lists the path of each block it joined; a selection lists none")
+    func paths() throws {
+        let reader = AXBlockReader()
+        #expect(try #require(reader.continuation(from: CGPoint(x: 5, y: 5), in: root)).paragraphPaths == [[0], [1]])
+        #expect(try #require(reader.selection(from: CGPoint(x: 0, y: 5), to: CGPoint(x: 90, y: 40), in: root)).paragraphPaths == [])
+    }
+
+    @Test("Clicking a continuation reads it with one paragraph end per joined block")
+    func clickParagraphEnds() throws {
+        let block = try #require(AXBlockReader().continuation(from: CGPoint(x: 5, y: 5), in: root))
+        let target = HoverTarget(rects: block.rects, text: block.text.text, accessible: block.text, paragraphPaths: block.paragraphPaths)
+        var state = PickerState()
+        _ = state.handle(.hotkey)
+        _ = state.handle(.hoverChanged(target))
+        guard case let .readAccessible(_, anchors) = try #require(state.handle(.click).last) else {
+            Issue.record("expected readAccessible")
+            return
+        }
+        #expect(anchors.sentences == ["One a.", "One b.", "Two."])
+        #expect(anchors.paragraphEnds == [1, 2])
+    }
+}
+
+@Suite("Paragraphs of terminal readings")
+struct TerminalParagraphTests {
+    @Test("Clicking a continuous terminal block reads it with its paragraph ends")
+    func terminalParagraphEnds() throws {
+        let lines = ["One a. One b.", "", "Two."]
+        let frame = CGRect(x: 0, y: 0, width: 130, height: 60)
+        let block = try #require(ParsedScreen(lines: lines, frame: frame, profile: PlainTerminalProfile())
+            .block(at: CGPoint(x: 5, y: 10), mode: .continuous))
+        var state = PickerState()
+        _ = state.handle(.hotkey)
+        _ = state.handle(.hoverChanged(HoverTarget(block)))
+        guard case let .readBlock(document, _) = try #require(state.handle(.click).last) else {
+            Issue.record("expected readBlock")
+            return
+        }
+        #expect(document.anchors.paragraphEnds == [1, 2])
+    }
+
+    @Test("A terminal drag selection has no paragraph ends, so it is never cut short")
+    func selectionHasNone() throws {
+        let lines = ["One a. One b.", "Two."]
+        let block = try #require(ParsedScreen(lines: lines, frame: CGRect(x: 0, y: 0, width: 130, height: 40), profile: PlainTerminalProfile())
+            .selection(from: CGPoint(x: 1, y: 5), to: CGPoint(x: 39, y: 30)))
+        #expect(block.paragraphRows == [])
+    }
+}

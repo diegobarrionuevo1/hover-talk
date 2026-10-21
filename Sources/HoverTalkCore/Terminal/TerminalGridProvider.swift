@@ -19,6 +19,9 @@ public struct TerminalTextBlock: Equatable, Sendable {
     public let mappedText: MappedText<CellPosition>
     /// Finds the block again on a later screen; `nil` for a block not read from a screen.
     public let anchor: ReadingAnchor?
+    /// The screen rows of each paragraph read, top to bottom, so paragraph reading can stop at
+    /// the end of a paragraph (see `paragraph(ofRow:)`). Empty for a selection.
+    public let paragraphRows: [ClosedRange<Int>]
 
     /// A block given as text alone: no Character has a cell, there is no anchor, and `rects`
     /// is `[rect]`.
@@ -33,7 +36,8 @@ public struct TerminalTextBlock: Equatable, Sendable {
         columns: ClosedRange<Int>,
         rect: CGRect,
         rects: [CGRect],
-        anchor: ReadingAnchor?
+        anchor: ReadingAnchor?,
+        paragraphRows: [ClosedRange<Int>] = []
     ) {
         text = mappedText.text
         self.mappedText = mappedText
@@ -42,6 +46,12 @@ public struct TerminalTextBlock: Equatable, Sendable {
         self.rect = rect
         self.rects = rects
         self.anchor = anchor
+        self.paragraphRows = paragraphRows
+    }
+
+    /// The index in `paragraphRows` of the paragraph holding screen row `row`.
+    public func paragraph(ofRow row: Int) -> Int? {
+        paragraphRows.firstIndex { $0.contains(row) }
     }
 }
 

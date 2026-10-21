@@ -124,14 +124,15 @@ struct OpenCodeProfileTests {
 
     // MARK: Roles on the vsplit
 
-    @Test("Left pane: the running tool, key hints, footer, input box, its border and the status line are chrome")
+    @Test("Left pane: the running tool, key hints, input box, its border and the status line are chrome; the footer ends the message")
     func leftPaneChrome() throws {
         let roles = profile.roles(ofPane: try vsplitPane(VSplitPanes.left))
 
         #expect(roles.count == 50)
-        for screenRow in [34, 35, 36, 37, 38, 40, 42, 44, 45, 46, 47, 48, 49, 50] {
+        for screenRow in [34, 35, 36, 37, 38, 40, 44, 45, 46, 47, 48, 49, 50] {
             #expect(roles[screenRow - 1] == .chrome, "row \(screenRow)")
         }
+        #expect(roles[42 - 1] == .end)
         for screenRow in [1, 11, 12, 13, 17, 30, 32] {
             #expect(roles[screenRow - 1] != .chrome, "row \(screenRow)")
         }
@@ -150,13 +151,14 @@ struct OpenCodeProfileTests {
         #expect(roles[29] == .content(try #require(textOf(roles[29])), columns: 0...102))
     }
 
-    @Test("Right pane: ⏳ and spinner tool rows, key hints, footer and input box are chrome; the sidebar is cut at 89")
+    @Test("Right pane: ⏳ and spinner tool rows, key hints and input box are chrome, the footer ends the message; the sidebar is cut at 89")
     func rightPane() throws {
         let roles = profile.roles(ofPane: try vsplitPane(VSplitPanes.right))
 
-        for screenRow in [34, 36, 37, 38, 40, 42, 44, 45, 46, 47, 48, 49] {
+        for screenRow in [34, 36, 37, 38, 40, 44, 45, 46, 47, 48, 49] {
             #expect(roles[screenRow - 1] == .chrome, "row \(screenRow)")
         }
+        #expect(roles[42 - 1] == .end)
         #expect(collapsed(roles[12]) == "lavenderby moonbeam, harbor fig), cedar \u{2192} (fig, falcon) \u{2192} wind,")
         #expect(roles[12] == .content(try #require(textOf(roles[12])), columns: 3...88))
     }
@@ -207,9 +209,9 @@ struct OpenCodeProfileTests {
         #expect(collapsed(roles[7]) == "after a blank row")
     }
 
-    @Test("The ▣ footer, key-hint rows and rows of only progress glyphs are chrome; prose naming a key is not")
+    @Test("The ▣ footer ends a message; key-hint rows and rows of only progress glyphs are chrome; prose naming a key is not")
     func rowLocalChrome() {
-        #expect(profile.role(of: "     \u{25A3}  build \u{00B7} model \u{00B7} 2.1s") == .chrome)
+        #expect(profile.role(of: "     \u{25A3}  build \u{00B7} model \u{00B7} 2.1s") == .end)
         #expect(profile.role(of: "     ctrl+x expand") == .chrome)
         #expect(profile.role(of: "   esc interrupt") == .chrome)
         #expect(profile.role(of: "   \u{2B1D}\u{2B1D}\u{2B1D}\u{2B1D}") == .chrome)

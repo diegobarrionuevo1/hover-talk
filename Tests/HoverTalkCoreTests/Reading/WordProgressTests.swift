@@ -95,3 +95,33 @@ struct SentenceAnchorsTests {
         #expect(anchors.anchors(ofSentence: 0).map(\.anchor) == [0])
     }
 }
+
+@Suite("Paragraph ends")
+struct ParagraphEndsTests {
+    /// Characters anchored to their index; paragraph = anchor / 100.
+    private func mapped(_ parts: [(String, Int)]) -> MappedText<Int> {
+        var text = MappedText<Int>()
+        for (index, part) in parts.enumerated() {
+            if index > 0 { text.append("\n", anchor: nil) }
+            for (offset, character) in part.0.enumerated() { text.append(character, anchor: part.1 * 100 + offset) }
+        }
+        return text
+    }
+
+    @Test("Each paragraph's last sentence is a paragraph end")
+    func ends() {
+        let anchors = SentenceAnchors(mapped([("A one. A two.", 0), ("B one.", 1), ("C one. C two.", 2)])) { $0 / 100 }
+        #expect(anchors.sentences.count == 5)
+        #expect(anchors.paragraphEnds == [1, 2, 4])
+        #expect(anchors.paragraphEnd(atOrAfter: 0) == 1)
+        #expect(anchors.paragraphEnd(atOrAfter: 2) == 2)
+        #expect(anchors.paragraphEnd(atOrAfter: 3) == 4)
+    }
+
+    @Test("Without paragraph information there are no paragraph ends")
+    func none() {
+        let anchors = SentenceAnchors(mapped([("A one. A two.", 0)]))
+        #expect(anchors.paragraphEnds == [])
+        #expect(anchors.paragraphEnd(atOrAfter: 0) == nil)
+    }
+}

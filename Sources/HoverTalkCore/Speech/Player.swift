@@ -39,6 +39,8 @@ public final class Player {
     }
 
     public func load(_ text: String) { apply { $0.load(text) } }
+    /// See `PlaybackQueue.setLastIndex(_:)`.
+    public func setLastIndex(_ index: Int?) { apply { $0.setLastIndex(index); return [] } }
     public func play() { apply { $0.play() } }
     public func pause() { apply { $0.pause() } }
     public func resume() { apply { $0.resume() } }
@@ -83,7 +85,7 @@ public final class Player {
 
     private static func state(of queue: PlaybackQueue) -> State {
         State(
-            currentIndex: queue.currentIndex, count: queue.sentences.count, status: queue.status,
+            currentIndex: queue.currentIndex, count: queue.sentences.isEmpty ? 0 : queue.lastIndex + 1, status: queue.status,
             rate: queue.rate, wordOffset: queue.wordOffset
         )
     }

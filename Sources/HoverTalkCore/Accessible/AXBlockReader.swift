@@ -45,6 +45,9 @@ public struct AXBlock: Equatable, Sendable {
     public let rects: [CGRect]
     /// The path of the block's container from the root.
     public let path: [Int]
+    /// For a continuation, the container path of each block joined, in order, so paragraph
+    /// reading can stop at the end of one; empty for a single block or a selection.
+    public var paragraphPaths: [[Int]] = []
 }
 
 /// Finds readable blocks in an accessibility tree: what a paragraph, heading, list item or code
@@ -116,17 +119,17 @@ public struct AXBlockReader: Sendable {
         for item in all[(start + 1)...] {
             switch item {
             case let .stop(stopArea) where stopArea == area:
-                return Self.joined(parts)
+                return Self.joinedParagraphs(parts)
             case let .block(block, blockArea) where blockArea == area:
                 let next = count + 1 + block.text.text.count
-                guard next <= continuationCap else { return Self.joined(parts) }
+                guard next <= continuationCap else { return Self.joinedParagraphs(parts) }
                 parts.append(block)
                 count = next
             default:
                 continue
             }
         }
-        return Self.joined(parts)
+        return Self.joinedParagraphs(parts)
     }
 
     /// The blocks whose rects meet the vertical span between `start` and `end`, in the reading
@@ -359,6 +362,13 @@ public struct AXBlockReader: Sendable {
             text.append(block.text)
         }
         return AXBlock(text: text, rects: blocks.flatMap(\.rects), path: blocks[0].path)
+    }
+
+    /// As `joined(_:)`, remembering each block's path (see `AXBlock.paragraphPaths`).
+    private static func joinedParagraphs(_ blocks: [AXBlock]) -> AXBlock {
+        var block = joined(blocks)
+        block.paragraphPaths = blocks.map(\.path)
+        return block
     }
 }
 

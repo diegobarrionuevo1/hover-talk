@@ -8,6 +8,9 @@ public enum LineRole: Equatable, Sendable {
     case content(String, columns: ClosedRange<Int>? = nil)
     /// Decoration such as borders, footers or status lines: never read, and ends a paragraph.
     case chrome
+    /// Chrome that also ends a message, such as OpenCode's `▣ agent · model` footer under an
+    /// answer: continuous reading stops there instead of going on to the next message.
+    case end
 }
 
 /// Knowledge about one terminal program's screen layout, such as a plain shell's or OpenCode's.

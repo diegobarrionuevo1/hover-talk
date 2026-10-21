@@ -28,7 +28,12 @@ public struct ReadingDocument: Equatable, Sendable {
     public let anchors: SentenceAnchors<CellPosition>
 
     /// `cleaned` is a block's `TerminalTextBlock.mappedText` after `TextCleaner`.
-    public init(_ cleaned: MappedText<CellPosition>, splitter: SentenceSplitter = SentenceSplitter()) {
+    /// `paragraph` tells which paragraph a cell was read from (see `SentenceAnchors`).
+    public init(
+        _ cleaned: MappedText<CellPosition>,
+        splitter: SentenceSplitter = SentenceSplitter(),
+        paragraph: ((CellPosition) -> Int?)? = nil
+    ) {
         let text = cleaned.text
         let ranges = splitter.ranges(in: text)
         self.text = text
@@ -48,7 +53,7 @@ public struct ReadingDocument: Equatable, Sendable {
         }
         sentenceSpans = perSentence.map(\.spans)
         spans = whole.spans
-        anchors = SentenceAnchors(cleaned, splitter: splitter)
+        anchors = SentenceAnchors(cleaned, splitter: splitter, paragraph: paragraph)
     }
 
     /// The cells of the word at the UTF-16 `utf16Offset` of sentence `sentence` (see

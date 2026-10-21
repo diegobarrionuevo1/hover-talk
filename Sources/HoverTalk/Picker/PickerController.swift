@@ -20,14 +20,14 @@ final class PickerController {
     /// What a lookup asks the resolver for.
     private enum Request: Equatable, Sendable {
         /// The block under the pointer, read as the mode says.
-        case hover(CGPoint, ReadingMode)
+        case hover(CGPoint)
         /// The text of the drag going on.
         case selection(from: CGPoint, to: CGPoint)
 
         /// Where the resolver reads the screen (`TerminalHoverResolver`).
         var point: CGPoint {
             switch self {
-            case let .hover(point, _): point
+            case let .hover(point): point
             case let .selection(start, _): start
             }
         }
@@ -149,7 +149,7 @@ final class PickerController {
 
     /// Where the latest hover lookup looked.
     private func hoverPoint() -> CGPoint? {
-        guard case let .hover(point, _) = lastRequest else { return nil }
+        guard case let .hover(point) = lastRequest else { return nil }
         return point
     }
 
@@ -230,7 +230,7 @@ final class PickerController {
         if let drag {
             request = .selection(from: drag.start, to: drag.end)
         } else if let point = currentPoint() {
-            request = .hover(point, preferences.readingMode)
+            request = .hover(point)
         } else {
             return
         }
@@ -244,7 +244,7 @@ final class PickerController {
         let dragGeneration = dragGeneration
         Task {
             let lookup = switch request {
-            case let .hover(point, mode): await resolver.lookup(at: point, mode: mode)
+            case let .hover(point): await resolver.lookup(at: point)
             case let .selection(start, end): await resolver.selection(from: start, to: end)
             }
             finishLookup(lookup, for: request, session: session, dragGeneration: dragGeneration)

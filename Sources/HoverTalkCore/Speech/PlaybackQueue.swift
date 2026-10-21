@@ -62,6 +62,22 @@ public struct PlaybackQueue: Equatable, Sendable {
         self.supportsLiveRate = supportsLiveRate
     }
 
+    /// The last sentence playback reads before it finishes: the last one, or an earlier limit
+    /// (`setLastIndex(_:)`), such as the end of the paragraph in paragraph reading mode.
+    public var lastIndex: Int {
+        let last = sentences.count - 1
+        guard let limit else { return last }
+        return min(max(limit, currentIndex, 0), last)
+    }
+    private var limit: Int?
+
+    /// Finishes playback after sentence `index` instead of the last one, or, with `nil`, reads
+    /// to the end. Takes effect at once, also while playing; a limit before the current
+    /// sentence counts as the current sentence. `load(_:)` clears it.
+    public mutating func setLastIndex(_ index: Int?) {
+        limit = index
+    }
+
     public var currentSentence: String? {
         sentences.indices.contains(currentIndex) ? sentences[currentIndex] : nil
     }
@@ -71,6 +87,7 @@ public struct PlaybackQueue: Equatable, Sendable {
     public mutating func load(_ text: String) -> [SpeechCommand] {
         let commands = stop()
         sentences = SentenceSplitter().split(text)
+        limit = nil
         return commands
     }
 
@@ -117,7 +134,7 @@ public struct PlaybackQueue: Equatable, Sendable {
     public mutating func next() -> [SpeechCommand] {
         guard status == .playing || status == .paused else { return [] }
         var commands = releaseUtterance()
-        guard currentIndex + 1 < sentences.count else {
+        guard currentIndex < lastIndex else {
             status = .finished
             return commands
         }
@@ -204,7 +221,7 @@ public struct PlaybackQueue: Equatable, Sendable {
             return []
         case .finished:
             currentUtteranceID = nil
-            guard currentIndex + 1 < sentences.count else {
+            guard currentIndex < lastIndex else {
                 status = .finished
                 return []
             }

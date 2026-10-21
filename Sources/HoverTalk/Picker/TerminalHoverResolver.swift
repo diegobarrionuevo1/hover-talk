@@ -34,14 +34,14 @@ actor TerminalHoverResolver {
     /// Apps already asked to build their web accessibility tree.
     private var webAccessibilityRequested = Set<pid_t>()
 
-    /// The block under `point`, read as `mode` says (see `ParsedScreen.block(at:mode:)`).
-    func lookup(at point: CGPoint, mode: ReadingMode) -> Lookup {
-        read(at: point, terminal: { $0.block(at: point, mode: mode) }, accessible: { reader, root in
-            // Outline only the pointed block, even in continuous mode, so a long page is not
-            // covered by one outline; the continuation is what a click reads.
+    /// The block under `point` with everything below it to the end of its message: the
+    /// outline is the pointed paragraph only, and the text holds the whole continuation with
+    /// its paragraphs, so the reading mode can be switched while reading (paragraph reading
+    /// only limits playback; see `ReadingSession.applyReadingLimit()`).
+    func lookup(at point: CGPoint) -> Lookup {
+        read(at: point, terminal: { $0.block(at: point, mode: .continuous) }, accessible: { reader, root in
             guard let block = reader.block(at: point, in: root) else { return nil }
-            let read = mode == .continuous ? reader.continuation(from: point, in: root) ?? block : block
-            return (outline: block, read: read)
+            return (outline: block, read: reader.continuation(from: point, in: root) ?? block)
         })
     }
 
@@ -53,7 +53,7 @@ actor TerminalHoverResolver {
         })
     }
 
-    /// The terminal screen at `point`, parsed through the same cache as `lookup(at:mode:)`, or
+    /// The terminal screen at `point`, parsed through the same cache as `lookup(at:)`, or
     /// `nil` when no terminal text area can be read there (the Accessibility permission included).
     func screen(at point: CGPoint) -> ParsedScreen? {
         guard let screen = try? TerminalAXSource.screen(at: point) else { return nil }
@@ -104,6 +104,9 @@ actor TerminalHoverResolver {
         guard let found = find(blockReader, current.root), !found.outline.rects.isEmpty,
               !found.read.text.text.allSatisfy(\.isWhitespace)
         else { return .target(nil) }
-        return .target(HoverTarget(rects: found.outline.rects, text: found.read.text.text, accessible: found.read.text))
+        return .target(HoverTarget(
+            rects: found.outline.rects, text: found.read.text.text,
+            accessible: found.read.text, paragraphPaths: found.read.paragraphPaths
+        ))
     }
 }
