@@ -15,20 +15,27 @@ enum TerminalAXSource {
         let frame: CGRect
     }
 
-    enum Failure: Error, Equatable {
-        /// The process lacks the Accessibility permission.
+    /// Holds no screen text: `PickerLog` logs these values.
+    enum Failure: Error, Hashable {
+        /// The process lacks the Accessibility permission: `AXIsProcessTrusted()` returned false.
         case notTrusted
-        /// No element could be read at the point.
+        /// The hit test at the point returned this `AXError` raw value, with the process trusted
+        /// when the call began (and again after `.apiDisabled`, see `element(at:in:)`): the app
+        /// under the point did not answer it.
+        case hitTestFailed(axError: Int32)
+        /// The hit test found no element at the point.
         case noElement
-        /// The element at the point is not an `AXTextArea` with a string value.
-        case notATextArea
+        /// The element at the point is not an `AXTextArea` with a string value; `role` is its
+        /// `AXRole`, or `nil` when it has none.
+        case notATextArea(role: String?)
         /// The text area has no readable `AXPosition`/`AXSize`.
         case noFrame
     }
 
     /// The text area at `point`, in AX global coordinates. Use `try?` when the reason does not
-    /// matter. `Failure.notTrusted` means `AXIsProcessTrusted()` was false at call time, or AX
-    /// reported its API disabled, so a caller can update its permission status from it.
+    /// matter. `Failure.notTrusted` is thrown only when `AXIsProcessTrusted()` returned false, so
+    /// a caller can update its permission status from it; any other failure concerns the app
+    /// under the point.
     static func screen(at point: CGPoint) throws(Failure) -> Screen {
         guard AXIsProcessTrusted() else { throw .notTrusted }
 
@@ -40,11 +47,17 @@ enum TerminalAXSource {
             guard let owner = windowOwner(at: point, excluding: ownPID) else { throw .noElement }
             element = try self.element(at: point, in: AXUIElementCreateApplication(owner))
         }
-        guard attribute(of: element, kAXRoleAttribute) as? String == kAXTextAreaRole,
-              let value = attribute(of: element, kAXValueAttribute) as? String
-        else { throw .notATextArea }
+        let role = attribute(of: element, kAXRoleAttribute) as? String
+        guard role == kAXTextAreaRole, let value = attribute(of: element, kAXValueAttribute) as? String
+        else { throw .notATextArea(role: role) }
         guard let frame = frame(of: element) else { throw .noFrame }
         return Screen(value: value, frame: frame)
+    }
+
+    /// The process owning the frontmost normal-level window that contains `point`, other than
+    /// this app (see `windowOwner(at:excluding:)`). For diagnostics: the app a failure concerns.
+    static func applicationPID(at point: CGPoint) -> pid_t? {
+        windowOwner(at: point, excluding: ProcessInfo.processInfo.processIdentifier)
     }
 
     /// Caps how long each AX call of this process waits for an app to answer, so a hung app
@@ -58,15 +71,16 @@ enum TerminalAXSource {
     /// The element at `point` below `root` (the system-wide element or an application element).
     private static func element(at point: CGPoint, in root: AXUIElement) throws(Failure) -> AXUIElement {
         var hit: AXUIElement?
-        switch AXUIElementCopyElementAtPosition(root, Float(point.x), Float(point.y), &hit) {
-        case .success:
-            break
-        case .apiDisabled:
-            // AXError.h: "The accessibility API is disabled". Defensive, not observed: it would
-            // cover a permission revoked between the trust check and this call.
-            throw .notTrusted
-        default:
-            throw .noElement
+        let error = AXUIElementCopyElementAtPosition(root, Float(point.x), Float(point.y), &hit)
+        guard error == .success else {
+            // AXError.h: `.apiDisabled` is "The accessibility API is disabled". Reported on its
+            // own as a missing permission, it was the one route to the permission alert that
+            // depended on the app under the pointer, and that alert showed over Chrome, Claude and
+            // ChatGPT while picking worked in Ghostty (founder report, 2026-10-21). So only a
+            // trust check that fails again reports the permission missing; any other error means
+            // that app did not answer, which reads as nothing to read.
+            if error == .apiDisabled, !AXIsProcessTrusted() { throw .notTrusted }
+            throw .hitTestFailed(axError: error.rawValue)
         }
         guard let hit else { throw .noElement }
         return hit

@@ -9,9 +9,14 @@ import HoverTalkCore
 /// selection, which `PickerController` starts while a live lookup may still run.
 actor TerminalHoverResolver {
     enum Lookup: Sendable {
-        /// The block or selection found, or `nil` over anything that is not terminal text.
+        /// The block or selection found on a terminal screen, or `nil` when none is there.
         case target(HoverTarget?)
-        /// The Accessibility permission is missing or was revoked.
+        /// No terminal screen could be read at the point, such as over an app that is not a
+        /// terminal or did not answer; never `.notTrusted`. Means nothing to read, as
+        /// `.target(nil)` does.
+        case unreadable(TerminalAXSource.Failure)
+        /// The Accessibility permission is missing or was revoked: `AXIsProcessTrusted()`
+        /// returned false.
         case notTrusted
     }
 
@@ -37,13 +42,13 @@ actor TerminalHoverResolver {
 
     /// `find` on the parsed screen of the terminal text area at `point`.
     private func read(at point: CGPoint, _ find: (ParsedScreen) -> TerminalTextBlock?) -> Lookup {
-        do {
+        do throws(TerminalAXSource.Failure) {
             let screen = try TerminalAXSource.screen(at: point)
             return .target(find(cache.screen(value: screen.value, frame: screen.frame)).map { HoverTarget($0) })
         } catch .notTrusted {
             return .notTrusted
         } catch {
-            return .target(nil)
+            return .unreadable(error)
         }
     }
 }

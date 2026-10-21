@@ -12,7 +12,8 @@ public enum AppCopy {
         return hotkey.map { "\(title)  \($0.displayString)" } ?? title
     }
 
-    /// Explains why picking stopped or did not start, with the onboarding title and buttons.
+    /// Explains why picking stopped or did not start, with the onboarding title and buttons, for
+    /// `PickerUnavailableReason.notTrusted`.
     public static let pickerNeedsAccessibilityMessage = """
         Picking text needs the Accessibility permission. Turn on \(AppInfo.name) in \
         System Settings > Privacy & Security > Accessibility.
@@ -20,6 +21,18 @@ public enum AppCopy {
         If it is already on, select it, remove it with the minus button, then add it again \
         with the plus button: after \(AppInfo.name) is rebuilt or updated, macOS can keep showing \
         an old permission that no longer matches the app.
+        """
+
+    /// `PickerUnavailableReason.inputCaptureRefused`: macOS refused the picker's input capture
+    /// while the process held the Accessibility permission. Shown with the onboarding buttons.
+    public static let pickerInputCaptureRefusedTitle = "\(AppInfo.name) could not start picking"
+    public static let pickerInputCaptureRefusedMessage = """
+        macOS refused to let \(AppInfo.name) capture clicks and Esc, which picking needs, even \
+        though the Accessibility permission is on. Quit \(AppInfo.name) and open it again.
+
+        If this keeps happening, open System Settings > Privacy & Security > Accessibility, \
+        select \(AppInfo.name), remove it with the minus button, then add it again with the plus \
+        button. If \(AppInfo.name) is also listed under Input Monitoring, do the same there.
         """
 
     public static let onboardingTitle = "\(AppInfo.name) needs Accessibility access"

@@ -11,9 +11,11 @@ final class PickerController {
     /// second), so the outline follows text that changes under it.
     private static let stillRefreshTicks = 8
 
-    /// Called when input capture could not start (see `PickerEventTap.start()`) or an AX read
-    /// reported the Accessibility permission missing. Picking has already ended.
-    var onNeedsAccessibility: (() -> Void)?
+    /// Called with why picking ended: input capture could not start (`PickerEventTap.start()`),
+    /// or a lookup found `AXIsProcessTrusted()` false. A lookup that reads nothing, such as over
+    /// an app that did not answer AX, never calls it: it shows no outline and picking goes on.
+    /// Picking has already ended.
+    var onUnavailable: ((PickerUnavailableReason) -> Void)?
 
     /// What a lookup asks the resolver for.
     private enum Request: Equatable, Sendable {
@@ -21,6 +23,14 @@ final class PickerController {
         case hover(CGPoint, ReadingMode)
         /// The text of the drag going on.
         case selection(from: CGPoint, to: CGPoint)
+
+        /// Where the resolver reads the screen (`TerminalHoverResolver`).
+        var point: CGPoint {
+            switch self {
+            case let .hover(point, _): point
+            case let .selection(start, _): start
+            }
+        }
     }
 
     private let readingSession: ReadingSession
@@ -45,6 +55,9 @@ final class PickerController {
     /// Where the next reading's screen source reads the screen again: the press of a released
     /// drag; `nil` for a click, which uses the point of the latest hover lookup.
     private var readPoint: CGPoint?
+    /// The lookup failures this picking session has logged, so each is logged once rather than
+    /// on every pointer check.
+    private var loggedFailures: Set<TerminalAXSource.Failure> = []
 
     init(readingSession: ReadingSession, preferences: Preferences) {
         self.readingSession = readingSession
@@ -70,7 +83,7 @@ final class PickerController {
                 for cleanup in state.handle(.cancel) {
                     _ = perform(cleanup)
                 }
-                onNeedsAccessibility?()
+                onUnavailable?(PickerUnavailableReason(inputCaptureRefusedWith: AccessibilityPermission.currentStatus()))
                 return
             }
         }
@@ -137,24 +150,31 @@ final class PickerController {
 
     private func finishSelection(_ lookup: TerminalHoverResolver.Lookup, start: CGPoint, session: Int) {
         guard session == self.session, trackingTimer != nil else { return }
+        let target: HoverTarget?
         switch lookup {
-        case let .target(target):
-            readPoint = start
-            send(.selectionEnded(target))
-            readPoint = nil
+        case let .target(found):
+            target = found
+        case let .unreadable(failure):
+            logOnce(failure, at: start)
+            target = nil
         case .notTrusted:
-            send(.cancel)
-            onNeedsAccessibility?()
+            endUntrusted(at: start)
+            return
         }
+        readPoint = start
+        send(.selectionEnded(target))
+        readPoint = nil
     }
 
     // MARK: - Pointer tracking
 
     private func startTracking() {
         session += 1
+        PickerLog.pickerStarted(session: session)
         lastRequest = nil
         drag = nil
         readPoint = nil
+        loggedFailures = []
         ticksSinceLookup = 0
         let timer = Timer(timeInterval: Self.trackingInterval, repeats: true) { [weak self] _ in
             // Added to the main run loop below, so the block runs on the main thread.
@@ -169,6 +189,7 @@ final class PickerController {
     }
 
     private func stopTracking() {
+        if trackingTimer != nil { PickerLog.pickerStopped(session: session) }
         trackingTimer?.invalidate()
         trackingTimer = nil
         drag = nil
@@ -207,16 +228,42 @@ final class PickerController {
     private func finishLookup(_ lookup: TerminalHoverResolver.Lookup, for request: Request, session: Int, dragGeneration: Int) {
         isLookingUp = false
         guard session == self.session, trackingTimer != nil else { return }
-        switch (lookup, request) {
-        case let (.target(target), .hover):
+        let target: HoverTarget?
+        switch lookup {
+        case let .target(found):
+            target = found
+        case let .unreadable(failure):
+            logOnce(failure, at: request.point)
+            target = nil
+        case .notTrusted:
+            endUntrusted(at: request.point)
+            return
+        }
+        switch request {
+        case .hover:
             send(.hoverChanged(target))
-        case let (.target(target), .selection):
+        case .selection:
             // A drag released meanwhile has its final selection looked up on its own.
             guard dragGeneration == self.dragGeneration, drag != nil else { return }
             send(.selectionChanged(target))
-        case (.notTrusted, _):
-            send(.cancel)
-            onNeedsAccessibility?()
         }
+    }
+
+    /// Ends picking because a lookup found `AXIsProcessTrusted()` false.
+    private func endUntrusted(at point: CGPoint) {
+        logOnce(.notTrusted, at: point)
+        send(.cancel)
+        onUnavailable?(.notTrusted)
+    }
+
+    // MARK: - Diagnostics
+
+    /// Logs `failure` the first time this picking session meets it, with the bundle identifier
+    /// of the app whose window is under `point` then (`TerminalAXSource.applicationPID(at:)`).
+    private func logOnce(_ failure: TerminalAXSource.Failure, at point: CGPoint) {
+        guard loggedFailures.insert(failure).inserted else { return }
+        let bundleID = TerminalAXSource.applicationPID(at: point)
+            .flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
+        PickerLog.lookupFailed(failure, bundleID: bundleID)
     }
 }

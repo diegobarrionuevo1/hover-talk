@@ -77,6 +77,22 @@ struct AppCopyTests {
         #expect(AppCopy.pickerNeedsAccessibilityMessage.contains("add it again"))
     }
 
+    @Test("The input-capture message says capture could not start with the permission on, suggests reopening first, then re-adding the app")
+    func pickerInputCaptureRefusedCopy() {
+        let message = AppCopy.pickerInputCaptureRefusedMessage
+
+        #expect(AppCopy.pickerInputCaptureRefusedTitle == "\(AppInfo.name) could not start picking")
+        #expect(message.contains("capture clicks and Esc"))
+        // Shown only when `AXIsProcessTrusted()` is true, so it must not claim the permission is missing.
+        #expect(message.contains("even though the Accessibility permission is on"))
+        #expect(!message.contains("needs the Accessibility permission"))
+        #expect(message.contains("Quit \(AppInfo.name) and open it again"))
+        #expect(message.contains("Privacy & Security > Accessibility"))
+        #expect(message.contains("remove it with the minus button"))
+        #expect(message.contains("add it again"))
+        #expect(message.contains("Input Monitoring"))
+    }
+
     @Test("Onboarding names the app, explains the purpose, and says nothing leaves the Mac unless the user sets up a voice server")
     func onboardingCopy() {
         #expect(AppCopy.onboardingTitle.contains(AppInfo.name))

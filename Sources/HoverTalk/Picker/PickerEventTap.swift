@@ -21,18 +21,21 @@ final class PickerEventTap {
 
     /// Returns `false` when macOS refuses the tap (`CGEvent.tapCreate` returns `nil`), such as
     /// for a tap that can consume events in a process without the Accessibility permission.
+    /// Logs the result (`PickerLog`).
     func start() -> Bool {
         guard port == nil else { return true }
         let types: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .keyDown, .keyUp]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
-        guard let port = CGEvent.tapCreate(
+        let port = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
             callback: pickerEventTapCallback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else { return false }
+        )
+        PickerLog.inputCapture(created: port != nil)
+        guard let port else { return false }
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0)
         // The main run loop runs the callback on the main thread, which the callback relies on.

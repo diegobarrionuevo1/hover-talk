@@ -59,8 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.showSettings()
         }
         let picker = PickerController(readingSession: session, preferences: preferences)
-        picker.onNeedsAccessibility = { [weak self] in
-            self?.pickerNeedsAccessibility()
+        picker.onUnavailable = { [weak self] reason in
+            self?.pickerUnavailable(reason)
         }
         self.picker = picker
         pickerHotkey = GlobalHotkey(.pickText) { [weak self] in
@@ -210,32 +210,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         trustPollTimer = nil
     }
 
-    /// Polling stops once trust is granted, so a later revocation is only noticed when an AX
-    /// read or the picker's input capture fails; this re-check then updates the status line
-    /// and restarts polling.
+    /// Polling stops once trust is granted, so a later revocation is only noticed when the
+    /// picker reports itself unavailable (`PickerController.onUnavailable`); this re-check then
+    /// updates the status line and restarts polling.
     private func recheckTrust() {
         apply(AccessibilityPresenter.presentation(for: AccessibilityPermission.currentStatus()))
     }
 
-    private func pickerNeedsAccessibility() {
+    private func pickerUnavailable(_ reason: PickerUnavailableReason) {
+        PickerLog.unavailableAlert(reason, isTrusted: AccessibilityPermission.currentStatus() == .granted)
         recheckTrust()
+        let presentation = PickerUnavailablePresenter.presentation(for: reason)
         // Shown from a later main-actor turn: this may run inside the hotkey's Carbon event
         // handler, and the alert runs a modal loop until it is dismissed.
         Task { @MainActor [weak self] in
-            self?.showAccessibilityAlert(message: AppCopy.pickerNeedsAccessibilityMessage)
+            self?.showAccessibilityAlert(title: presentation.title, message: presentation.message)
         }
     }
 
     // MARK: - Explanation
 
     @objc private func showAccessibilityExplanation() {
-        showAccessibilityAlert(message: AppCopy.onboardingMessage)
+        showAccessibilityAlert(title: AppCopy.onboardingTitle, message: AppCopy.onboardingMessage)
     }
 
-    private func showAccessibilityAlert(message: String) {
+    /// An alert with the onboarding buttons: open the Accessibility settings, or later.
+    private func showAccessibilityAlert(title: String, message: String) {
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = AppCopy.onboardingTitle
+        alert.messageText = title
         alert.informativeText = message
         alert.addButton(withTitle: AppCopy.onboardingOpenSettingsButton)
         alert.addButton(withTitle: AppCopy.onboardingLaterButton)
