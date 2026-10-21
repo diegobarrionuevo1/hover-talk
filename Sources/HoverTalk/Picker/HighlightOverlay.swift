@@ -19,6 +19,8 @@ final class HighlightOverlay {
         case light
         /// The sentence being read: a thin accent outline over a stronger accent fill.
         case strong
+        /// The word being spoken: a solid accent fill, drawn over the sentence.
+        case word
     }
 
     struct Shape: Equatable {
@@ -103,7 +105,7 @@ private extension HighlightOverlay.Style {
     var padding: CGSize {
         switch self {
         case .outline: CGSize(width: 4, height: 4)
-        case .light, .strong: CGSize(width: 2, height: 0)
+        case .light, .strong, .word: CGSize(width: 2, height: 0)
         }
     }
 
@@ -117,6 +119,7 @@ private extension HighlightOverlay.Style {
         case .outline: 2
         case .light: 0
         case .strong: 1.5
+        case .word: 0
         }
     }
 
@@ -125,6 +128,7 @@ private extension HighlightOverlay.Style {
         case .outline: 0.12
         case .light: 0.10
         case .strong: 0.25
+        case .word: 0.45
         }
     }
 }

@@ -15,6 +15,17 @@ struct ReadingDocumentTests {
         return mapped
     }
 
+    @Test("The word being spoken maps to its own cells, even across a wrapped row")
+    func wordSpans() {
+        var mapped = cells("One two. Three", row: 3, from: 2)
+        mapped.append(" ", anchor: nil)
+        mapped.append(cells("four.", row: 4, from: 2))
+        let document = ReadingDocument(mapped)
+        #expect(document.wordSpans(sentence: 0, utf16Offset: 4) == [RowSpan(row: 3, columns: 6...9)])
+        #expect(document.wordSpans(sentence: 1, utf16Offset: 6) == [RowSpan(row: 4, columns: 2...6)])
+        #expect(document.wordSpans(sentence: 5, utf16Offset: 0) == [])
+    }
+
     @Test("Each sentence maps to its own cells, one span per row; the document spans every row it was read from")
     func sentenceSpans() {
         var mapped = cells("One two. Three", row: 3, from: 2)

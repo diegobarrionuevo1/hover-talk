@@ -29,6 +29,8 @@ final class ReadingHighlighter {
         var probe: CGPoint
         /// The player's current sentence; `nil` until the player reports playing or paused.
         var sentence: Int?
+        /// See `Player.State.wordOffset`.
+        var wordOffset: Int?
         /// Where the document is on the latest screen read; `nil` before the first read or
         /// while its rows cannot be found.
         var placement: Placement?
@@ -84,6 +86,7 @@ final class ReadingHighlighter {
             end()
         case .playing, .paused:
             reading?.sentence = state.currentIndex
+            reading?.wordOffset = state.wordOffset
             render()
         }
     }
@@ -138,6 +141,7 @@ final class ReadingHighlighter {
             overlay.show()
             isOverlayShown = true
         }
-        overlay.draw(shapes(reading.document.spans, .light) + shapes(current, .strong))
+        let word = reading.wordOffset.map { reading.document.wordSpans(sentence: sentence, utf16Offset: $0) } ?? []
+        overlay.draw(shapes(reading.document.spans, .light) + shapes(current, .strong) + shapes(word, .word))
     }
 }

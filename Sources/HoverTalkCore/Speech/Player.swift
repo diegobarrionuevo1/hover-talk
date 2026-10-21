@@ -10,6 +10,8 @@ public final class Player {
         public let count: Int
         public let status: PlaybackStatus
         public let rate: SpeechRate
+        /// See `PlaybackQueue.wordOffset`.
+        public var wordOffset: Int? = nil
     }
 
     /// How many sentences after the one being spoken each `prepare` hint names.
@@ -80,6 +82,9 @@ public final class Player {
     }
 
     private static func state(of queue: PlaybackQueue) -> State {
-        State(currentIndex: queue.currentIndex, count: queue.sentences.count, status: queue.status, rate: queue.rate)
+        State(
+            currentIndex: queue.currentIndex, count: queue.sentences.count, status: queue.status,
+            rate: queue.rate, wordOffset: queue.wordOffset
+        )
     }
 }

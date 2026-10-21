@@ -40,6 +40,10 @@ public struct PlaybackQueue: Equatable, Sendable {
     public private(set) var currentUtteranceID: UUID?
     /// UTF-16 offset, within the current sentence, of the last word the engine reported.
     public private(set) var characterOffset = 0
+    /// The UTF-16 offset, in the current sentence, of the word the engine reported last, for
+    /// highlighting it; `nil` before the first progress of an utterance and for engines that
+    /// report no progress (such as the voice server engine).
+    public private(set) var wordOffset: Int?
 
     /// UTF-16 offset in the current sentence where the current utterance's text starts.
     /// Nonzero after a rate change re-speaks the rest of a sentence.
@@ -195,6 +199,7 @@ public struct PlaybackQueue: Equatable, Sendable {
         case .progress(let offset):
             if (0..<utteranceLength).contains(offset) {
                 characterOffset = utteranceStart + offset
+                wordOffset = characterOffset
             }
             return []
         case .finished:
@@ -224,6 +229,7 @@ public struct PlaybackQueue: Equatable, Sendable {
     private mutating func moveTo(_ index: Int) {
         currentIndex = index
         characterOffset = 0
+        wordOffset = nil
     }
 
     /// Drops the utterance the engine holds, if any, and returns the command that stops it.
@@ -243,6 +249,7 @@ public struct PlaybackQueue: Equatable, Sendable {
         utteranceStart = start.utf16Offset(in: sentence)
         utteranceLength = text.utf16.count
         characterOffset = utteranceStart
+        wordOffset = nil
         return .speak(text: text, rate: rate, voice: voice, utteranceID: id)
     }
 

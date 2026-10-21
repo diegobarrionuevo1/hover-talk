@@ -24,6 +24,8 @@ public struct ReadingDocument: Equatable, Sendable {
     public let sentenceSpans: [[RowSpan]]
     /// The same for every non-whitespace anchored Character of the text.
     public let spans: [RowSpan]
+    /// Each sentence's Characters with their cells, for the word being spoken.
+    public let anchors: SentenceAnchors<CellPosition>
 
     /// `cleaned` is a block's `TerminalTextBlock.mappedText` after `TextCleaner`.
     public init(_ cleaned: MappedText<CellPosition>, splitter: SentenceSplitter = SentenceSplitter()) {
@@ -46,6 +48,17 @@ public struct ReadingDocument: Equatable, Sendable {
         }
         sentenceSpans = perSentence.map(\.spans)
         spans = whole.spans
+        anchors = SentenceAnchors(cleaned, splitter: splitter)
+    }
+
+    /// The cells of the word at the UTF-16 `utf16Offset` of sentence `sentence` (see
+    /// `PlaybackQueue.wordOffset`), one span per row; empty when there is no such word.
+    public func wordSpans(sentence: Int, utf16Offset: Int) -> [RowSpan] {
+        var collector = SpanCollector()
+        for entry in anchors.word(inSentence: sentence, atUTF16Offset: utf16Offset) {
+            collector.add(entry.anchor, entry.character)
+        }
+        return collector.spans
     }
 }
 
