@@ -14,6 +14,10 @@ let usage = """
       HoverTalkCapture probe [--delay <seconds>]
           Runs the picker's reading pipeline on the element under the mouse and prints its
           structure only (role, frame, grid, panes, profile, block geometry and counts).
+      HoverTalkCapture axtree --app <bundle id> [--depth <n>] [--enable-web-ax]
+          Prints the frontmost window's accessibility tree as structure only (roles, counts,
+          frames, attribute names; never text). --enable-web-ax first asks Chromium/Electron
+          apps to build their web accessibility tree.
     Exit status: 0 written or probed, 1 capture or write failed, 2 usage error,
     3 refused (a sensitive term survived sanitizing; nothing written).
     """
@@ -22,9 +26,14 @@ enum Command {
     case ax(out: String, delay: Double)
     case tmuxPane(target: String, out: String)
     case probe(delay: Double)
+    case axTree(bundleID: String, depth: Int, enableWebAX: Bool)
 }
 
 func parse(_ arguments: [String]) -> Command? {
+    var arguments = arguments
+    // `--enable-web-ax` is the only option without a value.
+    let enableWebAX = arguments.contains("--enable-web-ax")
+    arguments.removeAll { $0 == "--enable-web-ax" }
     var positional: [String] = []
     var options: [String: String] = [:]
     var index = 0
@@ -39,6 +48,13 @@ func parse(_ arguments: [String]) -> Command? {
             index += 1
         }
     }
+    if positional == ["axtree"] {
+        guard let bundleID = options.removeValue(forKey: "--app") else { return nil }
+        let depth = options.removeValue(forKey: "--depth").map { Int($0) } ?? AXTreeProbe.defaultDepth
+        guard let depth, depth > 0, options.isEmpty else { return nil }
+        return .axTree(bundleID: bundleID, depth: depth, enableWebAX: enableWebAX)
+    }
+    guard !enableWebAX else { return nil }
     if positional == ["probe"] {
         let delay = options.removeValue(forKey: "--delay").map { Double($0) } ?? 0
         guard let delay, delay >= 0, options.isEmpty else { return nil }
@@ -71,6 +87,8 @@ switch command {
 case let .probe(delay):
     if delay > 0 { Thread.sleep(forTimeInterval: delay) }
     exit(Probe.run())
+case let .axTree(bundleID, depth, enableWebAX):
+    exit(MainActor.assumeIsolated { AXTreeProbe.run(bundleID: bundleID, depth: depth, enableWebAX: enableWebAX) })
 case let .ax(out, delay):
     outPath = out
     if delay > 0 { Thread.sleep(forTimeInterval: delay) }
