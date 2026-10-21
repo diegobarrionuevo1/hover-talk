@@ -109,3 +109,40 @@ struct ReadingAnchorTests {
         #expect(anchor.rowOffset(in: ParsedScreen(lines: fish.lines, frame: fish.frame)) == nil)
     }
 }
+
+@Suite("ReadingAnchor in stacked panes")
+struct StackedPaneAnchorTests {
+    /// Two tmux panes stacked over the same columns, split by a horizontal divider.
+    private let lines = [
+        "top shell line one     ",
+        "top shell line two     ",
+        "───────────────────────",
+        "Bottom paragraph here. ",
+        "It goes on.            ",
+        "                       ",
+    ]
+
+    private func screen(_ lines: [String]) -> ParsedScreen {
+        ParsedScreen(lines: lines, frame: CGRect(x: 0, y: 0, width: 230, height: CGFloat(lines.count) * 20), profile: PlainTerminalProfile())
+    }
+
+    @Test("An anchor read in the lower of two stacked panes is found again in that pane")
+    func lowerPane() throws {
+        let parsed = screen(lines)
+        #expect(parsed.panes.filter { $0.kind == .program }.count == 2)
+        let block = try #require(parsed.block(at: CGPoint(x: 15, y: 70)))
+        let anchor = try #require(block.anchor)
+        #expect(anchor.rowOffset(in: parsed) == 0)
+    }
+
+    @Test("It follows the lower pane's text when it scrolls up by a row")
+    func lowerPaneScrolls() throws {
+        let before = [lines[0], lines[1], lines[2], "                       ",
+                      "Bottom paragraph here. ", "It goes on.            ", "                       "]
+        let after = [lines[0], lines[1], lines[2], "Bottom paragraph here. ",
+                     "It goes on.            ", "                       ", "                       "]
+        let anchor = try #require(screen(before).block(at: CGPoint(x: 15, y: 90))?.anchor)
+        #expect(anchor.rowOffset(in: screen(before)) == 0)
+        #expect(anchor.rowOffset(in: screen(after)) == -1)
+    }
+}

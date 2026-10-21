@@ -124,7 +124,7 @@ public struct ParsedScreen: Sendable {
         return block(
             paragraphs,
             rects: [geometry.rect(rows: first.rows, columns: first.columns)],
-            paneColumns: parsed.pane.columns
+            paneColumns: parsed.pane.columns, paneRows: parsed.pane.rows
         )
     }
 
@@ -171,7 +171,7 @@ public struct ParsedScreen: Sendable {
         let spans = pieces.flatMap(\.spans)
         return block(
             pieces, rects: spans.map { geometry.rect(rows: $0.row...$0.row, columns: $0.columns) },
-            paneColumns: pane.columns, isSelection: true
+            paneColumns: pane.columns, paneRows: pane.rows, isSelection: true
         )
     }
 
@@ -202,10 +202,11 @@ public struct ParsedScreen: Sendable {
     /// The pieces joined with a newline into one block; `nil` without pieces.
     /// A selection keeps no paragraph rows, so paragraph reading never cuts it short.
     private func block(
-        _ pieces: [Piece], rects: [CGRect], paneColumns: ClosedRange<Int>, isSelection: Bool = false
+        _ pieces: [Piece], rects: [CGRect], paneColumns: ClosedRange<Int>, paneRows: ClosedRange<Int>,
+        isSelection: Bool = false
     ) -> TerminalTextBlock? {
         let spans = pieces.flatMap(\.spans)
-        guard let anchor = ReadingAnchor(grid: grid, spans: spans, paneColumns: paneColumns) else { return nil }
+        guard let anchor = ReadingAnchor(grid: grid, spans: spans, paneColumns: paneColumns, paneRows: paneRows) else { return nil }
         var text = MappedText<CellPosition>()
         for (index, piece) in pieces.enumerated() {
             if index > 0 { text.append("\n", anchor: nil) }
