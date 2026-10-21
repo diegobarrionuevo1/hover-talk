@@ -57,7 +57,7 @@ final class PickerEventTap {
     }
 
     /// Whether to consume the event.
-    fileprivate func handle(_ type: CGEventType, keyCode: Int64, location: CGPoint) -> Bool {
+    fileprivate func handle(_ type: CGEventType, keyCode: Int64, location: CGPoint, flags: CGEventFlags) -> Bool {
         switch type {
         case .tapDisabledByTimeout:
             // macOS disables a tap whose callback is too slow; keep capturing while started.
@@ -66,6 +66,13 @@ final class PickerEventTap {
         case .tapDisabledByUserInput:
             // Clicks and Esc would now reach the app under the pointer, so picking must end.
             deliver(.cancel)
+            return false
+        case .keyDown where PickerInputFilter.isSystemShortcut(
+            command: flags.contains(.maskCommand), shift: flags.contains(.maskShift)
+        ):
+            // A screenshot or other system chord: let it through and end capture, so its
+            // crosshair click reaches the system instead of being read as a pick.
+            deliver(.systemShortcut)
             return false
         default:
             break
@@ -118,8 +125,9 @@ private func pickerEventTapCallback(
     let tap = Unmanaged<PickerEventTap>.fromOpaque(userInfo).takeUnretainedValue()
     let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
     let location = event.location
+    let flags = event.flags
     let consume = MainActor.assumeIsolated {
-        tap.handle(type, keyCode: keyCode, location: location)
+        tap.handle(type, keyCode: keyCode, location: location, flags: flags)
     }
     return consume ? nil : Unmanaged.passUnretained(event)
 }

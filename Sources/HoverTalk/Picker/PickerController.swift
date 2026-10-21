@@ -75,7 +75,12 @@ final class PickerController {
         send(.hotkey)
     }
 
+    /// Hides a frozen outline (see `PickerState.Phase.frozen`) if the hotkey has not.
+    private var unfreezeTimer: Timer?
+    private static let frozenOutlineLifetime: TimeInterval = 30
+
     private func send(_ event: PickerEvent) {
+        defer { scheduleUnfreezeIfFrozen() }
         for effect in state.handle(event) {
             guard perform(effect) else {
                 // Capture could not start: end picking before the rest of the effects, such as
@@ -87,6 +92,24 @@ final class PickerController {
                 return
             }
         }
+    }
+
+    private func scheduleUnfreezeIfFrozen() {
+        guard state.phase == .frozen else {
+            unfreezeTimer?.invalidate()
+            unfreezeTimer = nil
+            return
+        }
+        guard unfreezeTimer == nil else { return }
+        let timer = Timer(timeInterval: Self.frozenOutlineLifetime, repeats: false) { [weak self] _ in
+            // Added to the main run loop below, so the block runs on the main thread.
+            MainActor.assumeIsolated {
+                self?.unfreezeTimer = nil
+                self?.send(.cancel)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        unfreezeTimer = timer
     }
 
     /// Returns `false` only when input capture could not start.

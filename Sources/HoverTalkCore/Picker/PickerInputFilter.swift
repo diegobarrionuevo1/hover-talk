@@ -49,6 +49,13 @@ public struct PickerInputFilter: Sendable {
     /// How far, in points, a press may move and still be a click.
     public static let dragThreshold: CGFloat = 4
 
+    /// Whether a key press with these modifiers is a system shortcut that must end input
+    /// capture: any Command-Shift chord, which covers the screenshot shortcuts (⌘⇧3, ⌘⇧4, ⌘⇧5).
+    /// Their crosshair click would otherwise be consumed and read as a pick.
+    public static func isSystemShortcut(command: Bool, shift: Bool) -> Bool {
+        command && shift
+    }
+
     /// Where the consumed mouse press started; `nil` while the button is up.
     private var pressLocation: CGPoint?
     private var isDragging = false

@@ -58,6 +58,9 @@ public enum PickerEvent: Equatable, Sendable {
     /// holds nothing readable.
     case selectionEnded(HoverTarget?)
     case escape
+    /// A system shortcut (a Command-Shift chord, such as the screenshot shortcuts) was pressed
+    /// while picking: input must reach the system again.
+    case systemShortcut
     /// Picking cannot go on, such as when input capture failed or Accessibility was revoked.
     case cancel
 }
@@ -88,6 +91,10 @@ public struct PickerState: Sendable {
         case picking(hover: HoverTarget?)
         /// A drag goes on; `selection` is the readable text selected so far.
         case selecting(selection: HoverTarget?)
+        /// After a system shortcut: input capture stopped so the shortcut (such as a screenshot's
+        /// crosshair click) works, while the outline stays on screen to be captured. The hotkey
+        /// or a cancel (the app sends one after a timeout) hides it.
+        case frozen
     }
 
     public private(set) var phase: Phase = .idle
@@ -119,6 +126,14 @@ public struct PickerState: Sendable {
             return [.startCapture, .showOverlay]
         case (.idle, _):
             return []
+        case (.frozen, .hotkey), (.frozen, .cancel):
+            phase = .idle
+            return [.hideOverlay]
+        case (.frozen, _):
+            return []
+        case (_, .systemShortcut):
+            phase = .frozen
+            return [.stopCapture]
         case let (.picking(hover), .hoverChanged(target)):
             let readable = readable(target)
             guard readable != hover else { return [] }
