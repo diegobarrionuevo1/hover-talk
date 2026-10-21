@@ -131,6 +131,9 @@ final class PickerController {
             overlay.highlight(rects)
         case let .read(text):
             readingSession.read(text)
+        case let .readAccessible(text, anchors):
+            let point = readPoint ?? hoverPoint() ?? currentPoint() ?? .zero
+            readingSession.read(accessibleText: text, anchors: anchors, point: point)
         case let .readBlock(document, anchor):
             let point = readPoint ?? hoverPoint() ?? currentPoint() ?? .zero
             readingSession.read(document: document, screenSource: ReadingScreenSource(resolver: resolver, anchor: anchor, point: point))

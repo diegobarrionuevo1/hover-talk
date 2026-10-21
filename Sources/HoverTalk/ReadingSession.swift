@@ -33,6 +33,9 @@ final class ReadingSession {
     private let preferences: Preferences
     private let voices: SystemVoiceProvider
     private let highlighter = ReadingHighlighter()
+    private let accessibleHighlighter = AccessibleReadingHighlighter()
+    /// Marks to start with the next reading that `start` begins (see `read(accessibleText:…)`).
+    private var pendingAccessibleMarks: (anchors: SentenceAnchors<AXTextAnchor>, point: CGPoint)?
     private let languageDetector = LanguageDetector()
     /// Identifies the latest `read` call, so a reading that waited for the voice server does not
     /// start after a newer one.
@@ -72,6 +75,7 @@ final class ReadingSession {
         player.onChange = { [weak self] state in
             self?.renderController(state)
             self?.highlighter.update(state)
+            self?.accessibleHighlighter.update(state)
             self?.storeRate(state.rate)
         }
         renderController(player.state)
@@ -137,19 +141,36 @@ final class ReadingSession {
     /// controller hidden.
     func read(_ text: String) {
         highlighter.end()
+        endAccessibleMarks()
         begin(text: text, highlight: nil)
+    }
+
+    /// As `read(_:)`, while `AccessibleReadingHighlighter` marks the text in the app under
+    /// `point` (AX coordinates): `anchors.sentences` are the player's sentences of `text`.
+    func read(accessibleText text: String, anchors: SentenceAnchors<AXTextAnchor>, point: CGPoint) {
+        highlighter.end()
+        endAccessibleMarks()
+        pendingAccessibleMarks = (anchors, point)
+        begin(text: text, highlight: nil)
+    }
+
+    private func endAccessibleMarks() {
+        pendingAccessibleMarks = nil
+        accessibleHighlighter.end()
     }
 
     /// As `read(_:)` with `document.text`, while the highlighter marks the document on the
     /// screen `screenSource` reads. The player splits `document.text` into `document.sentences`
     /// (both use `SentenceSplitter`), so its sentence index is the document's.
     func read(document: ReadingDocument, screenSource: ReadingScreenSource) {
+        endAccessibleMarks()
         begin(text: document.text, highlight: (document, screenSource))
     }
 
     /// While the picker shows its own highlight, the reading marks hide; they come back after.
     func setPicking(_ picking: Bool) {
         highlighter.setSuspended(picking)
+        accessibleHighlighter.setSuspended(picking)
     }
 
     // MARK: - Starting a reading
@@ -166,6 +187,7 @@ final class ReadingSession {
         }
         player.stop()
         highlighter.end()
+        accessibleHighlighter.end()
         Task { [weak self] in
             await self?.remoteVoice.checkBeforeReading()
             guard let self, self.readingToken == token else { return }
@@ -194,10 +216,15 @@ final class ReadingSession {
         if let highlight {
             highlighter.begin(highlight.0, source: highlight.1)
         }
+        if let marks = pendingAccessibleMarks {
+            pendingAccessibleMarks = nil
+            accessibleHighlighter.begin(marks.anchors, point: marks.point)
+        }
         player.play()
         // Without sentences play() changes nothing, so no state would end these marks.
-        if highlight != nil, player.state.status != .playing {
+        if player.state.status != .playing {
             highlighter.end()
+            accessibleHighlighter.end()
         }
         renderController(player.state)
     }

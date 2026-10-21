@@ -104,6 +104,6 @@ actor TerminalHoverResolver {
         guard let found = find(blockReader, current.root), !found.outline.rects.isEmpty,
               !found.read.text.text.allSatisfy(\.isWhitespace)
         else { return .target(nil) }
-        return .target(HoverTarget(rects: found.outline.rects, text: found.read.text.text))
+        return .target(HoverTarget(rects: found.outline.rects, text: found.read.text.text, accessible: found.read.text))
     }
 }

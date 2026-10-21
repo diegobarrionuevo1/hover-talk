@@ -14,21 +14,26 @@ public struct HoverTarget: Equatable, Sendable {
     /// The terminal block the target was found as, so a click can read it with an on-screen
     /// highlight; `nil` for a target given as a rect and text.
     public let block: TerminalTextBlock?
+    /// The accessibility text the target was found as, each Character anchored to its node, so
+    /// a click can read it with an on-screen highlight; `nil` otherwise.
+    public let accessible: MappedText<AXTextAnchor>?
 
     public init(rect: CGRect, text: String) {
         self.rect = rect
         rects = [rect]
         self.text = text
         block = nil
+        accessible = nil
     }
 
     /// A target outlined as `rects` (such as an accessibility block's text frames), spanning
-    /// their union; `rects` must not be empty.
-    public init(rects: [CGRect], text: String) {
+    /// their union; `rects` must not be empty. `accessible` is the anchored text, when known.
+    public init(rects: [CGRect], text: String, accessible: MappedText<AXTextAnchor>? = nil) {
         rect = rects.dropFirst().reduce(rects[0]) { $0.union($1) }
         self.rects = rects
         self.text = text
         block = nil
+        self.accessible = accessible
     }
 
     public init(_ block: TerminalTextBlock) {
@@ -36,6 +41,7 @@ public struct HoverTarget: Equatable, Sendable {
         rects = block.rects
         text = block.text
         self.block = block
+        accessible = nil
     }
 
     /// Compares rect and text only, so a target found again on an unchanged block is the same
@@ -80,6 +86,9 @@ public enum PickerEffect: Equatable, Sendable {
     /// cleaned text (never empty) and the cells of each sentence; the anchor finds the block
     /// again on later screens.
     case readBlock(ReadingDocument, anchor: ReadingAnchor)
+    /// Read accessibility text aloud and highlight it while reading: `text` is cleaned (never
+    /// empty) and `anchors` holds its sentences with the node position of each Character.
+    case readAccessible(text: String, anchors: SentenceAnchors<AXTextAnchor>)
 }
 
 /// The picker as a pure state machine: `idle`, then `picking` from the hotkey until a click on
@@ -179,6 +188,10 @@ public struct PickerState: Sendable {
         guard let text = spokenText(of: target) else { return nil }
         if let block = target.block, let anchor = block.anchor {
             return .readBlock(ReadingDocument(cleaner.clean(block.mappedText)), anchor: anchor)
+        }
+        if let accessible = target.accessible {
+            let cleaned = cleaner.clean(accessible)
+            return .readAccessible(text: cleaned.text, anchors: SentenceAnchors(cleaned))
         }
         return .read(text)
     }

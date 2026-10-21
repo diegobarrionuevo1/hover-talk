@@ -248,3 +248,35 @@ struct HoverTargetRectsTests {
         #expect(target.block == nil)
     }
 }
+
+@Suite("Reading accessible targets")
+struct AccessibleReadTests {
+    @Test("A click over an accessibility block reads it with its anchors, cleaned")
+    func clickReadsWithAnchors() throws {
+        var mapped = MappedText<AXTextAnchor>()
+        for (offset, character) in "**Hi** there.".enumerated() {
+            mapped.append(character, anchor: AXTextAnchor(path: [0], offset: offset))
+        }
+        let target = HoverTarget(rects: [CGRect(x: 0, y: 0, width: 50, height: 10)], text: mapped.text, accessible: mapped)
+        var state = PickerState()
+        _ = state.handle(.hotkey)
+        _ = state.handle(.hoverChanged(target))
+        let effects = state.handle(.click)
+        guard case let .readAccessible(text, anchors) = try #require(effects.last) else {
+            Issue.record("expected readAccessible, got \(effects)")
+            return
+        }
+        #expect(text == "Hi there.")
+        #expect(anchors.sentences == ["Hi there."])
+        #expect(anchors.anchors(ofSentence: 0).first?.anchor == AXTextAnchor(path: [0], offset: 2))
+    }
+
+    @Test("A target given as rects and text without anchors still reads as plain text")
+    func plain() throws {
+        let target = HoverTarget(rects: [CGRect(x: 0, y: 0, width: 50, height: 10)], text: "Hello.")
+        var state = PickerState()
+        _ = state.handle(.hotkey)
+        _ = state.handle(.hoverChanged(target))
+        #expect(state.handle(.click).last == .read("Hello."))
+    }
+}
