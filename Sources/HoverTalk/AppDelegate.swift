@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var readingSession: ReadingSession?
     private var picker: PickerController?
     private var pickerHotkey: GlobalHotkey?
+    private var selection: SelectionReadController?
+    private var selectionHotkey: GlobalHotkey?
     private let voices = SystemVoiceProvider()
     private let voiceMenu = VoiceMenu()
     private var settingsWindow: SettingsWindowController?
@@ -67,6 +69,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.picker?.toggle()
         }
 
+        let selection = SelectionReadController(readingSession: session)
+        selection.onUnavailable = { [weak self] reason in
+            self?.pickerUnavailable(reason)
+        }
+        self.selection = selection
+        selectionHotkey = GlobalHotkey(.readSelection) { [weak self] in
+            self?.selection?.readSelection()
+        }
+
         installStatusItem()
 
         let presentation = AccessibilityPresenter.presentation(for: AccessibilityPermission.currentStatus())
@@ -80,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         stopPolling()
         pickerHotkey?.unregister()
+        selectionHotkey?.unregister()
     }
 
     // MARK: - Status item and menu
@@ -105,6 +117,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         pickItem.target = self
         menu.addItem(pickItem)
+
+        let readSelectionItem = NSMenuItem(
+            title: AppCopy.readSelectionMenuTitle(for: selectionHotkey == nil ? nil : .readSelection),
+            action: #selector(readSelection),
+            keyEquivalent: ""
+        )
+        readSelectionItem.target = self
+        menu.addItem(readSelectionItem)
 
         continueReadingMenuItem.target = self
         continueReadingMenuItem.action = #selector(toggleContinuousReading)
@@ -186,6 +206,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func pickText() {
         picker?.toggle()
+    }
+
+    @objc private func readSelection() {
+        selection?.readSelection()
     }
 
     // MARK: - Trust polling

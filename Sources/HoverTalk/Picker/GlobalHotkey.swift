@@ -8,6 +8,11 @@ import HoverTalkCore
 final class GlobalHotkey {
     /// 'HvTk': identifies this app's hotkeys in Carbon events.
     private static let signature: OSType = "HvTk".utf8.reduce(0) { $0 << 8 | OSType($1) }
+    /// The id of the next shortcut: Carbon calls every installed handler for every hotkey of
+    /// the app, so each handler tells its own shortcut by id.
+    private static var nextID: UInt32 = 1
+
+    private let id: UInt32
 
     private let action: () -> Void
     private var hotKeyRef: EventHotKeyRef?
@@ -16,6 +21,8 @@ final class GlobalHotkey {
     /// `nil` when the shortcut cannot be registered, such as when another app already holds it.
     init?(_ hotkey: Hotkey, action: @escaping () -> Void) {
         self.action = action
+        id = Self.nextID
+        Self.nextID += 1
 
         var pressed = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         let installed = InstallEventHandler(
@@ -31,7 +38,7 @@ final class GlobalHotkey {
         let registered = RegisterEventHotKey(
             hotkey.keyCode,
             Self.carbonModifiers(hotkey.modifiers),
-            EventHotKeyID(signature: Self.signature, id: 1),
+            EventHotKeyID(signature: Self.signature, id: id),
             GetApplicationEventTarget(),
             0,
             &hotKeyRef
@@ -52,8 +59,10 @@ final class GlobalHotkey {
         handlerRef = nil
     }
 
-    fileprivate func fire() {
+    fileprivate func fire(_ pressed: EventHotKeyID) -> Bool {
+        guard pressed.signature == Self.signature, pressed.id == id else { return false }
         action()
+        return true
     }
 
     private static func carbonModifiers(_ modifiers: Hotkey.Modifiers) -> UInt32 {
@@ -73,10 +82,14 @@ private func globalHotkeyHandler(
     _ event: EventRef?,
     _ userData: UnsafeMutableRawPointer?
 ) -> OSStatus {
-    guard let userData else { return OSStatus(eventNotHandledErr) }
+    guard let userData, let event else { return OSStatus(eventNotHandledErr) }
+    var pressed = EventHotKeyID()
+    let read = GetEventParameter(
+        event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil,
+        MemoryLayout<EventHotKeyID>.size, nil, &pressed
+    )
+    guard read == noErr else { return OSStatus(eventNotHandledErr) }
     let hotkey = Unmanaged<GlobalHotkey>.fromOpaque(userData).takeUnretainedValue()
-    MainActor.assumeIsolated {
-        hotkey.fire()
-    }
-    return noErr
+    let handled = MainActor.assumeIsolated { hotkey.fire(pressed) }
+    return handled ? noErr : OSStatus(eventNotHandledErr)
 }

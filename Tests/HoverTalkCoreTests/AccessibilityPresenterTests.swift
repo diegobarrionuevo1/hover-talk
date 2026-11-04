@@ -67,6 +67,9 @@ struct AppCopyTests {
     func pickTextTitle() {
         #expect(AppCopy.pickTextMenuTitle(for: .pickText) == "Pick Text to Read  ⌃⌥R")
         #expect(AppCopy.pickTextMenuTitle(for: nil) == "Pick Text to Read")
+        #expect(AppCopy.readSelectionMenuTitle(for: .readSelection) == "Read Selection  ⌃⌥S")
+        #expect(AppCopy.readAllMenuTitle(for: .readAll) == "Read All  ⌃⌥A")
+        #expect(AppCopy.readAllMenuTitle(for: nil) == "Read All")
     }
 
     @Test("The picker's permission message says where to grant it and how to fix an outdated grant")

@@ -18,4 +18,14 @@ struct HotkeyTests {
         #expect(Hotkey(keyCode: 0x00, modifiers: [.command], keyName: "A").displayString == "⌘A")
         #expect(Hotkey(keyCode: 0x00, modifiers: [], keyName: "A").displayString == "A")
     }
+
+    @Test("Read selection is Control-Option-S and read all is Control-Option-A, and no two shortcuts clash")
+    func otherHotkeys() {
+        #expect(Hotkey.readSelection.keyCode == 0x01)
+        #expect(Hotkey.readSelection.displayString == "⌃⌥S")
+        #expect(Hotkey.readAll.keyCode == 0x00)
+        #expect(Hotkey.readAll.displayString == "⌃⌥A")
+        let all = [Hotkey.pickText, .readSelection, .readAll]
+        #expect(Set(all.map(\.keyCode)).count == all.count)
+    }
 }

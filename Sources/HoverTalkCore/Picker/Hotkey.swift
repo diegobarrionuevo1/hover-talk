@@ -33,4 +33,10 @@ public struct Hotkey: Equatable, Sendable {
 
     /// Starts the picker: Control-Option-R. 0x0F is `kVK_ANSI_R` in HIToolbox `Events.h`.
     public static let pickText = Hotkey(keyCode: 0x0F, modifiers: [.control, .option], keyName: "R")
+
+    /// Reads the text selected in the frontmost app: Control-Option-S. 0x01 is `kVK_ANSI_S`.
+    public static let readSelection = Hotkey(keyCode: 0x01, modifiers: [.control, .option], keyName: "S")
+
+    /// Reads the whole window or page: Control-Option-A. 0x00 is `kVK_ANSI_A`.
+    public static let readAll = Hotkey(keyCode: 0x00, modifiers: [.control, .option], keyName: "A")
 }

@@ -8,8 +8,21 @@ public enum AppCopy {
     /// The menu item that starts the picker, with its hotkey after two spaces, or alone when
     /// the hotkey could not be registered (`nil`).
     public static func pickTextMenuTitle(for hotkey: Hotkey?) -> String {
-        let title = "Pick Text to Read"
-        return hotkey.map { "\(title)  \($0.displayString)" } ?? title
+        menuTitle("Pick Text to Read", hotkey: hotkey)
+    }
+
+    /// The menu item that reads the text selected in the frontmost app.
+    public static func readSelectionMenuTitle(for hotkey: Hotkey?) -> String {
+        menuTitle("Read Selection", hotkey: hotkey)
+    }
+
+    /// The menu item that reads the whole window or page under the pointer.
+    public static func readAllMenuTitle(for hotkey: Hotkey?) -> String {
+        menuTitle("Read All", hotkey: hotkey)
+    }
+
+    private static func menuTitle(_ title: String, hotkey: Hotkey?) -> String {
+        hotkey.map { "\(title)  \($0.displayString)" } ?? title
     }
 
     /// Explains why picking stopped or did not start, with the onboarding title and buttons, for
