@@ -48,6 +48,15 @@ actor TerminalHoverResolver {
         })
     }
 
+    /// Everything the terminal pane, or the accessibility reading area, under `point` shows
+    /// (`ParsedScreen.wholePane(at:)`, `AXBlockReader.wholeArea(at:in:)`): the outline is the
+    /// first paragraph, the text holds it all.
+    func lookupAll(at point: CGPoint) -> Lookup {
+        read(at: point, terminal: { $0.wholePane(at: point) }, accessible: { reader, root in
+            reader.wholeArea(at: point, in: root).map { (outline: $0, read: $0) }
+        })
+    }
+
     /// The text dragged over from `start` to `end`, on the terminal text area under `start`
     /// (see `ParsedScreen.selection(from:to:)`).
     func selection(from start: CGPoint, to end: CGPoint) -> Lookup {

@@ -188,6 +188,12 @@ public struct PickerState: Sendable {
         target.flatMap { spokenText(of: $0) == nil ? nil : $0 }
     }
 
+    /// How to read `target` right now, without picking (the whole-window mode): the effect a
+    /// click on it would produce, or `nil` when nothing is left to speak.
+    public func readEffect(for target: HoverTarget) -> PickerEffect? {
+        read(target)
+    }
+
     /// How to read `target`, or `nil` when nothing is left to speak.
     private func read(_ target: HoverTarget) -> PickerEffect? {
         guard let text = spokenText(of: target) else { return nil }

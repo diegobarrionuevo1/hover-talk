@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pickerHotkey: GlobalHotkey?
     private var selection: SelectionReadController?
     private var selectionHotkey: GlobalHotkey?
+    private var readAllHotkey: GlobalHotkey?
     private let voices = SystemVoiceProvider()
     private let voiceMenu = VoiceMenu()
     private var settingsWindow: SettingsWindowController?
@@ -78,6 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.selection?.readSelection()
         }
 
+        readAllHotkey = GlobalHotkey(.readAll) { [weak self] in
+            self?.picker?.readAll()
+        }
+
         installStatusItem()
 
         let presentation = AccessibilityPresenter.presentation(for: AccessibilityPermission.currentStatus())
@@ -92,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stopPolling()
         pickerHotkey?.unregister()
         selectionHotkey?.unregister()
+        readAllHotkey?.unregister()
     }
 
     // MARK: - Status item and menu
@@ -125,6 +131,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         readSelectionItem.target = self
         menu.addItem(readSelectionItem)
+
+        let readAllItem = NSMenuItem(
+            title: AppCopy.readAllMenuTitle(for: readAllHotkey == nil ? nil : .readAll),
+            action: #selector(readAll),
+            keyEquivalent: ""
+        )
+        readAllItem.target = self
+        menu.addItem(readAllItem)
 
         continueReadingMenuItem.target = self
         continueReadingMenuItem.action = #selector(toggleContinuousReading)
@@ -206,6 +220,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func pickText() {
         picker?.toggle()
+    }
+
+    @objc private func readAll() {
+        picker?.readAll(atWindowCenter: true)
     }
 
     @objc private func readSelection() {

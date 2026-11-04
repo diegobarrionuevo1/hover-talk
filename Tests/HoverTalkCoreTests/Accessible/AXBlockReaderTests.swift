@@ -337,3 +337,31 @@ struct TerminalParagraphTests {
         #expect(block.paragraphRows == [])
     }
 }
+
+@Suite("AXBlockReader whole area")
+struct AXWholeAreaTests {
+    let reader = AXBlockReader()
+
+    @Test("Reading the whole area gives every block of the pointed area, past the composer, whatever the pointer is over")
+    func wholeArea() throws {
+        let everything = reader.blocks(in: Trees.chat).map(\.text.text).joined(separator: "\n")
+
+        let onBlock = try #require(reader.wholeArea(at: CGPoint(x: 60, y: 102), in: Trees.chat))
+        let onNothing = try #require(reader.wholeArea(at: CGPoint(x: 900, y: 5000), in: Trees.chat))
+
+        #expect(onBlock.text.text == everything)
+        #expect(onNothing.text.text == everything)
+        #expect(onBlock.text.text.hasSuffix("Gamma below composer."))
+        #expect(onBlock.paragraphPaths.count == 8)
+    }
+
+    @Test("Chrome stays out of the whole area, and the continuation cap still applies")
+    func wholeAreaSkipsChromeAndCaps() throws {
+        let article = try #require(reader.wholeArea(at: CGPoint(x: 30, y: 125), in: Trees.article)).text.text
+
+        #expect(article == "Title\nFirst paragraph with link.\nSecond paragraph.")
+        let capped = try #require(AXBlockReader(continuationCap: 20).wholeArea(at: CGPoint(x: 30, y: 125), in: Trees.article))
+        #expect(capped.text.text == "Title")
+        #expect(reader.wholeArea(at: .zero, in: AXNode(role: "AXWebArea")) == nil)
+    }
+}

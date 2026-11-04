@@ -132,6 +132,26 @@ public struct AXBlockReader: Sendable {
         return Self.joinedParagraphs(parts)
     }
 
+    /// Every block of the reading area that holds the block at `point`, in document order, joined
+    /// with line breaks, with chrome skipped; an editable input does not end it. When `point` is
+    /// over no block, the area of the first block is read. `nil` when the tree has no block.
+    /// Stops at `continuationCap` characters, as `continuation(from:in:)` does.
+    public func wholeArea(at point: CGPoint, in root: AXNode) -> AXBlock? {
+        let all = items(in: root)
+        let anchor = index(at: point, in: all) ?? all.firstIndex { if case .block = $0 { true } else { false } }
+        guard let anchor, case let .block(_, area) = all[anchor] else { return nil }
+        var parts: [AXBlock] = []
+        var count = 0
+        for item in all {
+            guard case let .block(block, blockArea) = item, blockArea == area else { continue }
+            let next = count + (parts.isEmpty ? 0 : 1) + block.text.text.count
+            guard parts.isEmpty || next <= continuationCap else { break }
+            parts.append(block)
+            count = next
+        }
+        return parts.isEmpty ? nil : Self.joinedParagraphs(parts)
+    }
+
     /// The blocks whose rects meet the vertical span between `start` and `end`, in the reading
     /// area of the first of them, with the first block trimmed before the earlier point and the
     /// last block trimmed after the later point.

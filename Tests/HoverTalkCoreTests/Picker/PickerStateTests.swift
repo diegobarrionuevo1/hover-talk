@@ -15,6 +15,17 @@ struct PickerStateTests {
         return state
     }
 
+    // MARK: Reading a target without picking
+
+    @Test("readEffect gives the same read a click would, cleaned, without picking; nothing for text with nothing to speak")
+    func readEffectWithoutPicking() {
+        let state = PickerState()
+
+        #expect(state.readEffect(for: paragraph) == .read("A bold word here."))
+        #expect(state.readEffect(for: HoverTarget(rect: .zero, text: " \u{2500}\u{2500} ")) == nil)
+        #expect(state.phase == .idle)
+    }
+
     // MARK: Starting
 
     @Test("A new picker is idle")

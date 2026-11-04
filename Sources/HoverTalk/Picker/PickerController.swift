@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import HoverTalkCore
 
 /// Runs picker mode: feeds the hotkey, pointer moves, clicks, drags and Esc to a `PickerState`
@@ -36,6 +37,7 @@ final class PickerController {
     private let readingSession: ReadingSession
     private let preferences: Preferences
     private var state = PickerState()
+    private var isReadingAll = false
     private let eventTap = PickerEventTap()
     private let overlay = HighlightOverlay()
     private let resolver = TerminalHoverResolver()
@@ -94,6 +96,37 @@ final class PickerController {
         }
     }
 
+    /// Reads everything the window under the pointer shows (a terminal pane, or a page or app
+    /// area), without picking. From the menu the pointer is on the menu bar, so
+    /// `atWindowCenter` reads the middle of the frontmost app's focused window instead.
+    /// Ignored while picking or while a read-all lookup runs.
+    func readAll(atWindowCenter: Bool = false) {
+        guard state.phase == .idle, !isReadingAll,
+              let point = atWindowCenter ? frontmostWindowCenter() : currentPoint()
+        else { return }
+        guard AccessibilityPermission.currentStatus() == .granted else {
+            onUnavailable?(.notTrusted)
+            return
+        }
+        isReadingAll = true
+        Task {
+            let lookup = await resolver.lookupAll(at: point)
+            isReadingAll = false
+            guard state.phase == .idle else { return }
+            switch lookup {
+            case let .target(found):
+                guard let found, let effect = state.readEffect(for: found) else { return }
+                readPoint = point
+                _ = perform(effect)
+                readPoint = nil
+            case .unreadable:
+                break
+            case .notTrusted:
+                onUnavailable?(.notTrusted)
+            }
+        }
+    }
+
     private func scheduleUnfreezeIfFrozen() {
         guard state.phase == .frozen else {
             unfreezeTimer?.invalidate()
@@ -139,6 +172,29 @@ final class PickerController {
             readingSession.read(document: document, screenSource: ReadingScreenSource(resolver: resolver, anchor: anchor, point: point))
         }
         return true
+    }
+
+    /// The centre, in AX coordinates, of the focused window of the frontmost app.
+    private func frontmostWindowCenter() -> CGPoint? {
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return nil }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.25)
+        var window: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &window) == .success,
+              let window, CFGetTypeID(window) == AXUIElementGetTypeID()
+        else { return nil }
+        let element = window as! AXUIElement
+        var position: CFTypeRef?
+        var size: CFTypeRef?
+        var origin = CGPoint.zero
+        var extent = CGSize.zero
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success,
+              let position, let size,
+              AXValueGetValue(position as! AXValue, .cgPoint, &origin),
+              AXValueGetValue(size as! AXValue, .cgSize, &extent)
+        else { return nil }
+        return CGPoint(x: origin.x + extent.width / 2, y: origin.y + extent.height / 2)
     }
 
     /// The pointer in AX coordinates, or `nil` without a screen.

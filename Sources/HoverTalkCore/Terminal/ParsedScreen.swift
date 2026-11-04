@@ -101,7 +101,26 @@ public struct ParsedScreen: Sendable {
               let parsed = panes.first(where: { $0.pane.contains(cell) }),
               parsed.kind == .program
         else { return nil }
+        return block(at: cell, in: parsed, mode: mode, stopsAtMessageEnds: true)
+    }
 
+    /// Everything the pane under `point` shows, from its first row of content to its last, one
+    /// paragraph after another as `block(at:mode:)` with `.continuous` joins them, except that
+    /// a message end (such as OpenCode's `▣` footer) does not stop it. `nil` when `point` is
+    /// outside the screen or not in a `.program` pane, or when the pane has no content. Where
+    /// in the pane the point lies does not matter, so it can be on blank space.
+    public func wholePane(at point: CGPoint) -> TerminalTextBlock? {
+        guard let cell = geometry.cell(at: point),
+              let parsed = panes.first(where: { $0.pane.contains(cell) }),
+              parsed.kind == .program,
+              let index = parsed.readRows.firstIndex(where: { $0 != nil }),
+              let first = parsed.readRows[index]
+        else { return nil }
+        let start = CellPosition(row: parsed.pane.rows.lowerBound + index, column: first.columns.lowerBound)
+        return block(at: start, in: parsed, mode: .continuous, stopsAtMessageEnds: false)
+    }
+
+    private func block(at cell: CellPosition, in parsed: ParsedPane, mode: ReadingMode, stopsAtMessageEnds: Bool) -> TerminalTextBlock? {
         let readRows = parsed.readRows
         let pointed = cell.row - parsed.pane.rows.lowerBound
         guard let pointedRow = readRows[pointed], pointedRow.columns.contains(cell.column) else { return nil }
@@ -111,7 +130,7 @@ public struct ParsedScreen: Sendable {
         var paragraphs = [first]
         if mode == .continuous {
             var index = pointedRange.upperBound + 1
-            while index < readRows.count, !parsed.endRows.contains(index) {
+            while index < readRows.count, !(stopsAtMessageEnds && parsed.endRows.contains(index)) {
                 guard readRows[index] != nil else {
                     index += 1
                     continue
