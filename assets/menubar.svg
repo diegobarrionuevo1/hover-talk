@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 200" width="220" height="200">
+  <mask id="holes"><rect width="220" height="200" fill="#fff"/><g fill="#000"><circle cx="137" cy="48" r="8"/><circle cx="157" cy="48" r="8"/><circle cx="177" cy="48" r="8"/></g></mask>
+  <g fill="none" stroke="#000" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="22" y="70" width="112" height="78" rx="12"/>
+    <path d="M10 170h136"/>
+    <path d="M62 112q18 20 36 0"/>
+  </g>
+  <circle cx="58" cy="94" r="8"/><circle cx="98" cy="94" r="8"/>
+  <path mask="url(#holes)" d="M120 14h74a18 18 0 0 1 18 18v32a18 18 0 0 1-18 18h-34l-22 20 2-20h-20a18 18 0 0 1-18-18V32a18 18 0 0 1 18-18z"/>
+</svg>

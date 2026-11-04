@@ -26,6 +26,8 @@ BIN_PATH="$(swift build -c release --show-bin-path)/$APP_NAME"
 rm -rf "$APP_DIR"
 mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Resources"
 cp "$BIN_PATH" "$CONTENTS_DIR/MacOS/$APP_NAME"
+# Icons come from scripts/make-icons.sh: the app icon, and the menu-bar image the app loads.
+cp "$ROOT_DIR"/Resources/AppIcon.icns "$ROOT_DIR"/Resources/MenuBarIcon*.png "$CONTENTS_DIR/Resources/"
 
 # Network keys, for the opt-in voice server only (the app sends nothing else):
 # - NSAllowsLocalNetworking lifts App Transport Security (ATS) for plain http to unqualified host
@@ -49,6 +51,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>$APP_NAME</string>
     <key>CFBundleIdentifier</key>
     <string>$BUNDLE_ID</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundlePackageType</key>

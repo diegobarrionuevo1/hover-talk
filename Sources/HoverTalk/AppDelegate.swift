@@ -102,10 +102,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Status item and menu
 
+    /// The logo as a template image (macOS tints it for light and dark menu bars), from the
+    /// bundle's `MenuBarIcon.png` and `MenuBarIcon@2x.png`; the speaker symbol when the app runs
+    /// outside a bundle (`swift run`).
+    private static func menuBarImage() -> NSImage? {
+        guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
+              let image = NSImage(contentsOf: url)
+        else { return NSImage(systemSymbolName: "speaker.wave.2", accessibilityDescription: AppInfo.name) }
+        // The files are 22 x 20 pixels at 1x; the 2x file next to it is picked up by name.
+        image.size = NSSize(width: 22, height: 20)
+        if let retina = Bundle.main.url(forResource: "MenuBarIcon@2x", withExtension: "png"),
+           let data = try? Data(contentsOf: retina), let rep = NSBitmapImageRep(data: data) {
+            rep.size = image.size
+            image.addRepresentation(rep)
+        }
+        image.accessibilityDescription = AppInfo.name
+        return image
+    }
+
     private func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            let image = NSImage(systemSymbolName: "speaker.wave.2", accessibilityDescription: AppInfo.name)
+            let image = Self.menuBarImage()
             image?.isTemplate = true
             button.image = image
             button.toolTip = AppInfo.name

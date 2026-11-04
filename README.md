@@ -1,6 +1,8 @@
-# HoverTalk
+<p align="center"><img src="docs/media/logo.png" alt="HoverTalk logo: a laptop with a smiling face and a speech bubble" width="220"></p>
 
-**Point at text. Click. Listen.**
+<h1 align="center">HoverTalk</h1>
+
+<p align="center"><strong>Point at text. Click. Listen.</strong></p>
 
 HoverTalk is a macOS menu-bar app that reads text aloud from the place you point at. Press a hotkey, move the mouse over a paragraph (it gets outlined), click, and HoverTalk reads it and everything below it. It was built for people who listen to long AI-agent answers in the terminal while doing something else, and it also works in browsers and desktop apps.
 
@@ -123,6 +125,9 @@ Sources/HoverTalkCapture    dev tool: capture sanitized screen fixtures, probe t
 Sources/HoverTalkFixtureKit sanitizer behind HoverTalkCapture
 Tests/                      unit tests and sanitized fixtures
 scripts/bundle.sh           builds the .app
+scripts/make-icons.sh       renders the logo in assets/ into the app icon, menu-bar icon and README image
+assets/                     logo sources (SVG)
+Resources/                  generated icons, copied into the .app
 ```
 
 ## License

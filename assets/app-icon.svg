@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eceaff"/></linearGradient></defs>
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="url(#bg)"/>
+  <svg x="200" y="266" width="624" height="568" viewBox="0 0 220 200">
+  <clipPath id="mouth"><path d="M70 104h40a20 19 0 0 1-40 0z"/></clipPath>
+  <rect x="26" y="54" width="128" height="94" rx="12" fill="#e8523f"/>
+  <rect x="35" y="63" width="110" height="76" rx="6" fill="#fff4dc"/>
+  <rect x="8" y="146" width="164" height="16" rx="8" fill="#ff6b5b"/>
+  <rect x="72" y="146" width="36" height="6" rx="3" fill="#e8523f"/>
+  <circle cx="70" cy="86" r="6.5" fill="#3b1f1a"/><circle cx="110" cy="86" r="6.5" fill="#3b1f1a"/>
+  <path d="M70 104h40a20 19 0 0 1-40 0z" fill="#3b1f1a"/>
+  <ellipse cx="90" cy="125" rx="11" ry="7" fill="#ff7a8a" clip-path="url(#mouth)"/>
+  <path d="M136 12h58a16 16 0 0 1 16 16v26a16 16 0 0 1-16 16h-34l-24 20 4-20h-4a16 16 0 0 1-16-16V28a16 16 0 0 1 16-16z" fill="#ffd24a" stroke="#fff4dc" stroke-width="4" stroke-linejoin="round"/>
+  <g fill="#3b1f1a"><circle cx="150" cy="41" r="6"/><circle cx="170" cy="41" r="6"/><circle cx="190" cy="41" r="6"/></g>
+  <path d="M0 0v28l8-7 6 12 8-4-6-12h11z" transform="translate(142 112)" fill="#1b1d2b" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+</svg>
+</svg>
