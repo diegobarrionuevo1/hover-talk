@@ -60,7 +60,7 @@ struct ReadingLimitTests {
         var queue = PlaybackQueue()
         _ = queue.load("One. Two.")
         queue.setLastIndex(0)
-        _ = queue.load("A. B. C.")
+        _ = queue.load("Alpha one. Beta two. Gamma three.")
         #expect(queue.lastIndex == 2)
     }
 

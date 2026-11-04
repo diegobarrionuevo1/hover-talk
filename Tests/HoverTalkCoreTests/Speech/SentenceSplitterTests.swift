@@ -162,8 +162,12 @@ struct SentenceSplitterRangesTests {
 }
 
 /// Boundaries decided by `NLTokenizer` itself. These record the tokenizer's observed behavior
-/// so a change in a future macOS release shows up as a failing test.
-@Suite("SentenceSplitter tokenizer behavior")
+/// so a change in a future macOS release shows up as a failing test. They were recorded on
+/// macOS 26: macOS 15 (the CI runner) splits "Sr." before a name, so they run from macOS 26 on.
+@Suite(
+    "SentenceSplitter tokenizer behavior",
+    .enabled(if: ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)))
+)
 struct SentenceSplitterTokenizerBehaviorTests {
     private let splitter = SentenceSplitter()
 
