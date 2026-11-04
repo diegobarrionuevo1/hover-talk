@@ -37,7 +37,7 @@ macOS reads what it is told to, chrome included. In a terminal it reads the tmux
 There are no prebuilt releases yet; build it from source.
 
 ```sh
-git clone https://github.com/<your-user>/hover-talk.git
+git clone https://github.com/diegobarrionuevo1/hover-talk.git
 cd hover-talk
 scripts/bundle.sh          # builds build/HoverTalk.app
 open build/HoverTalk.app
