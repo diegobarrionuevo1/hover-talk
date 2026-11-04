@@ -10,13 +10,20 @@ public struct ScreenBlockCache: Sendable {
     }
 
     public let registry: TUIProfileRegistry
+    /// The tmux status bar edge for a screen of `columns` × `rows` cells, asked once per parse;
+    /// `nil` when unknown (see `TmuxClients`).
+    public let statusBar: @Sendable (_ columns: Int, _ rows: Int) -> StatusEdge?
     /// How many times a screen was parsed; for tests and diagnostics.
     public private(set) var parseCount = 0
     private var key: Key?
     private var parsed: ParsedScreen?
 
-    public init(registry: TUIProfileRegistry = .standard) {
+    public init(
+        registry: TUIProfileRegistry = .standard,
+        statusBar: @escaping @Sendable (_ columns: Int, _ rows: Int) -> StatusEdge? = { _, _ in nil }
+    ) {
         self.registry = registry
+        self.statusBar = statusBar
     }
 
     /// The parsed screen for a terminal text area's `AXValue`, split into rows by
@@ -24,7 +31,12 @@ public struct ScreenBlockCache: Sendable {
     public mutating func screen(value: String, frame: CGRect) -> ParsedScreen {
         let key = Key(value: value, frame: frame)
         if key == self.key, let parsed { return parsed }
-        let screen = ParsedScreen(lines: AXScreenRows.split(value), frame: frame, registry: registry)
+        let lines = AXScreenRows.split(value)
+        let size = TerminalGrid(lines: lines)
+        let screen = ParsedScreen(
+            lines: lines, frame: frame, registry: registry,
+            statusBar: statusBar(size.columns, size.rowCount)
+        )
         self.key = key
         parsed = screen
         parseCount += 1

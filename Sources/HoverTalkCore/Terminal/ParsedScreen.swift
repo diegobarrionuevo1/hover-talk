@@ -34,20 +34,23 @@ public struct ParsedScreen: Sendable {
     public let panes: [ParsedPane]
 
     /// Reads each `.program` pane with the profile `registry` picks for it.
-    public init(lines: [String], frame: CGRect, registry: TUIProfileRegistry = .standard) {
-        self.init(lines: lines, frame: frame) { registry.profile(for: $0) }
+    ///
+    /// `statusBar` is the edge of a tmux status bar known from outside the text (see
+    /// `PaneLayout.classify(_:statusBar:)`).
+    public init(lines: [String], frame: CGRect, registry: TUIProfileRegistry = .standard, statusBar: StatusEdge? = nil) {
+        self.init(lines: lines, frame: frame, statusBar: statusBar) { registry.profile(for: $0) }
     }
 
     /// Reads every `.program` pane with `profile`.
-    public init(lines: [String], frame: CGRect, profile: any TUIProfile) {
-        self.init(lines: lines, frame: frame) { _ in profile }
+    public init(lines: [String], frame: CGRect, profile: any TUIProfile, statusBar: StatusEdge? = nil) {
+        self.init(lines: lines, frame: frame, statusBar: statusBar) { _ in profile }
     }
 
-    private init(lines: [String], frame: CGRect, profileForPane: ([String]) -> any TUIProfile) {
+    private init(lines: [String], frame: CGRect, statusBar: StatusEdge?, profileForPane: ([String]) -> any TUIProfile) {
         let grid = TerminalGrid(lines: lines)
         self.grid = grid
         geometry = TerminalGeometry(frame: frame, rows: grid.rowCount, columns: grid.columns)
-        panes = PaneLayout.classify(grid).map { classified in
+        panes = PaneLayout.classify(grid, statusBar: statusBar).map { classified in
             guard classified.kind == .program else {
                 return ParsedPane(pane: classified.pane, kind: classified.kind, profile: nil, readRows: [])
             }

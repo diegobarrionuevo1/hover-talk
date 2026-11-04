@@ -78,9 +78,10 @@ public enum TerminalGridProvider {
         at point: CGPoint,
         frame: CGRect,
         lines: [String],
-        registry: TUIProfileRegistry = .standard
+        registry: TUIProfileRegistry = .standard,
+        statusBar: StatusEdge? = nil
     ) -> TerminalTextBlock? {
-        ParsedScreen(lines: lines, frame: frame, registry: registry).block(at: point)
+        ParsedScreen(lines: lines, frame: frame, registry: registry, statusBar: statusBar).block(at: point)
     }
 
     /// As `block(at:frame:lines:registry:)`, but reads every pane with `profile`.
@@ -88,9 +89,10 @@ public enum TerminalGridProvider {
         at point: CGPoint,
         frame: CGRect,
         lines: [String],
-        profile: any TUIProfile
+        profile: any TUIProfile,
+        statusBar: StatusEdge? = nil
     ) -> TerminalTextBlock? {
-        ParsedScreen(lines: lines, frame: frame, profile: profile).block(at: point)
+        ParsedScreen(lines: lines, frame: frame, profile: profile, statusBar: statusBar).block(at: point)
     }
 
     static func collapsingWhitespace(_ row: String) -> String {

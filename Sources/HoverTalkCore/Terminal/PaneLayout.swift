@@ -22,6 +22,12 @@ public enum PaneKind: Equatable, Sendable {
     case tmuxStatus
 }
 
+/// The screen edge a terminal multiplexer's status bar is drawn on.
+public enum StatusEdge: Hashable, Sendable {
+    case top
+    case bottom
+}
+
 /// A pane and what it holds.
 public struct ClassifiedPane: Equatable, Sendable {
     public let pane: Pane
@@ -56,9 +62,26 @@ public enum PaneLayout {
     ///
     /// A peeled row is `.tmuxStatus` when it spans every column and is the grid's first or
     /// last row; every other pane is `.program`.
-    public static func classify(_ grid: TerminalGrid) -> [ClassifiedPane] {
+    ///
+    /// With `statusBar`, that edge row is the `.tmuxStatus` pane whether or not the rest splits,
+    /// since a window without splits has no divider to give the bar away; the rest is then
+    /// split without peeling further rows. Only a caller that knows tmux draws a bar there
+    /// (see `TmuxClients`) passes it.
+    public static func classify(_ grid: TerminalGrid, statusBar: StatusEdge? = nil) -> [ClassifiedPane] {
         guard grid.rowCount > 0, grid.columns > 0 else { return [] }
-        return split(Pane(rows: 0...(grid.rowCount - 1), columns: 0...(grid.columns - 1)), in: grid, allowPeel: true)
+        let last = grid.rowCount - 1
+        let columns = 0...(grid.columns - 1)
+        guard let statusBar, grid.rowCount >= 2 else {
+            return split(Pane(rows: 0...last, columns: columns), in: grid, allowPeel: true)
+        }
+        switch statusBar {
+        case .top:
+            return [ClassifiedPane(pane: Pane(rows: 0...0, columns: columns), kind: .tmuxStatus)]
+                + split(Pane(rows: 1...last, columns: columns), in: grid, allowPeel: false)
+        case .bottom:
+            return split(Pane(rows: 0...(last - 1), columns: columns), in: grid, allowPeel: false)
+                + [ClassifiedPane(pane: Pane(rows: last...last, columns: columns), kind: .tmuxStatus)]
+        }
     }
 
     private static func split(_ rect: Pane, in grid: TerminalGrid, allowPeel: Bool) -> [ClassifiedPane] {

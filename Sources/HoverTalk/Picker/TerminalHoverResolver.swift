@@ -24,7 +24,10 @@ actor TerminalHoverResolver {
         case notTrusted
     }
 
-    private var cache = ScreenBlockCache()
+    private var cache = {
+        let tmux = TmuxStatusProbe()
+        return ScreenBlockCache(statusBar: { tmux.statusBar(columns: $0, rows: $1) })
+    }()
     private let blockReader = AXBlockReader()
     /// The last accessibility snapshot, reused while the pointer stays over the same area for
     /// `snapshotLifetime`: hover lookups run several times a second, and a snapshot of a chat
