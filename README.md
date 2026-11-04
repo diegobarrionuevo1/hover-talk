@@ -24,7 +24,6 @@ macOS reads what it is told to, chrome included. In a terminal it reads the tmux
 | **Chrome**, **Chromium and Electron apps** (such as the Claude and ChatGPT desktop apps) | Works, through the accessibility tree |
 | **Safari** and other native apps | Uses the same accessibility reader; not verified app by app |
 | Terminals other than Ghostty (iTerm2, Terminal.app, kitty, WezTerm…) | Untested. HoverTalk reads the text area Ghostty exposes for the whole screen; other terminals may expose less |
-| *Read selection* and *read all* modes | Not implemented yet |
 
 ## Requirements
 
@@ -61,12 +60,26 @@ HoverTalk reads text through the macOS Accessibility API, so it needs your permi
 
 ## Use it
 
-1. Press **⌃⌥R** (Control-Option-R), or choose *Pick Text* from the menu-bar icon.
-2. Move the mouse. The block under the pointer is outlined.
-3. **Click** to read it. **Esc** cancels.
-4. Control playback from the floating player. Drag across text to read just that selection.
+HoverTalk has three ways to start reading. Each has a global hotkey and a menu-bar item.
 
-Open **Settings…** (⌘,) in the menu to choose the voice and the voice server. The menu also has *Read Clipboard* and *Continue Reading Below*.
+| Mode | Hotkey | What it reads |
+|---|---|---|
+| **Pick text** | **⌃⌥R** | You point and click. Reads the block under the pointer and everything below it |
+| **Read selection** | **⌃⌥S** | The text you have selected in the frontmost app |
+| **Read all** | **⌃⌥A** | Everything the window under the pointer shows: a terminal pane, a page or an app area |
+
+**Pick text**
+
+1. Press ⌃⌥R, or choose *Pick Text to Read* from the menu-bar icon.
+2. Move the mouse. The block under the pointer is outlined.
+3. **Click** to read it. **Esc** cancels. Drag across text to read just that selection.
+4. Control playback from the floating player: previous/next sentence, pause, speed, stop.
+
+**Read selection** asks the app for its selected text. Apps that do not expose it (terminals such as Ghostty) are asked to copy with ⌘C, and HoverTalk puts your clipboard back right after. If the app has nothing selected, nothing is read. Some editors copy the current line when nothing is selected; there, that line is read.
+
+**Read all** reads from the first paragraph to the last, without stopping at message ends. With the hotkey, put the pointer over the window you want. From the menu, it reads the focused window of the app you were using. In a terminal split, it reads only the pane under the pointer.
+
+Open **Settings…** (⌘,) in the menu to choose the voice and the voice server. The hotkeys are fixed for now.
 
 ### Better voices
 
@@ -86,6 +99,7 @@ If you run an OpenAI-compatible speech server such as [Kokoro-FastAPI](https://g
 
 | Symptom | Fix |
 |---|---|
+| Pressing a hotkey does nothing | Another app may hold that shortcut. The menu item then shows no hotkey next to its name |
 | "Accessibility permission needed", but the toggle is on | Remove HoverTalk from the Accessibility list and add it again (see [Signing](#signing-and-why-it-matters)) |
 | Nothing is outlined in a terminal | HoverTalk only reads Ghostty's text area today. Check the app is Ghostty |
 | tmux status bar is still read | The bar is detected by asking `tmux list-clients`; HoverTalk looks for tmux in `/opt/homebrew/bin`, `/usr/local/bin` and `/usr/bin` |
