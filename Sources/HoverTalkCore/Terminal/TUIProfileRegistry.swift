@@ -16,8 +16,10 @@ public struct TUIProfileRegistry: Sendable {
         self.fallback = fallback
     }
 
-    /// OpenCode, then Claude Code; the plain profile for anything else.
-    public static let standard = TUIProfileRegistry(profiles: [OpenCodeProfile(), ClaudeCodeProfile()])
+    /// Gentle Shell, OpenCode, then Claude Code; the plain profile for anything else. Gentle
+    /// Shell goes first: its markers are glyphs a screen about the other programs does not
+    /// show, while their markers are plain text a Gentle Shell conversation can quote.
+    public static let standard = TUIProfileRegistry(profiles: [GentleShellProfile(), OpenCodeProfile(), ClaudeCodeProfile()])
 
     /// The profile for a pane, given every row of the pane cut to its columns.
     public func profile(for paneLines: [String]) -> any TUIProfile {

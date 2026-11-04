@@ -21,6 +21,8 @@ struct TUIProfileRegistryTests {
         #expect(registry.profile(for: vsplit.paneLines(rows: VSplitPanes.rows, columns: VSplitPanes.left)) is OpenCodeProfile)
         #expect(registry.profile(for: vsplit.paneLines(rows: VSplitPanes.rows, columns: VSplitPanes.right)) is OpenCodeProfile)
         #expect(registry.profile(for: try ScreenFixture.load("synthetic-claude-code").lines) is ClaudeCodeProfile)
+        let gentleShell = try FixtureScreen("ghostty-tmux-gentle-shell")
+        #expect(registry.profile(for: gentleShell.paneLines(rows: 1...42, columns: 0...44)) is GentleShellProfile)
         #expect(registry.profile(for: try ScreenFixture.load("plain-shell-fish").lines) is PlainTerminalProfile)
         #expect(registry.profile(for: []) is PlainTerminalProfile)
     }
