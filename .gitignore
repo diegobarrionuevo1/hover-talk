@@ -11,3 +11,5 @@ build/
 # Local tooling
 .codegraph/
 .DS_Store
+.atl/
+odd/
