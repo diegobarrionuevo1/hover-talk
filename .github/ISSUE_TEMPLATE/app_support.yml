@@ -1,0 +1,29 @@
+name: Support for an app, terminal or IDE
+description: Ask for, or report on, an app HoverTalk does not read well yet.
+labels: [enhancement]
+body:
+  - type: input
+    id: app
+    attributes:
+      label: App
+      description: Name and version, for example "Zed 0.170" or "iTerm2 3.5".
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [Terminal, Terminal UI program (agent, editor, file manager), IDE or code editor, Browser or web app, Other desktop app]
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happens today
+      description: Does the outline appear? Does it read too much, too little, or nothing?
+  - type: textarea
+    id: tree
+    attributes:
+      label: Accessibility tree (optional, never prints text)
+      description: Output of `swift run HoverTalkCapture axtree --app <bundle id> --enable-web-ax`.
+      render: text

@@ -3,6 +3,7 @@
 #   Resources/AppIcon.icns          app icon (from assets/app-icon.svg)
 #   Resources/MenuBarIcon.png/@2x   menu-bar template image (from assets/menubar.svg)
 #   docs/media/logo.png             README header (from assets/logo.svg)
+#   docs/media/social-preview.png   GitHub social preview, 1280x640 (from assets/social-preview.html)
 # Needs Google Chrome (headless, for the SVG rendering), sips and iconutil. Run it again after
 # editing an SVG and commit the results.
 set -euo pipefail
@@ -42,4 +43,8 @@ render "$ROOT_DIR/assets/menubar.svg" 44 40 "$ROOT_DIR/Resources/MenuBarIcon@2x.
 # README header.
 render "$ROOT_DIR/assets/logo.svg" 440 400 "$ROOT_DIR/docs/media/logo.png"
 
-echo "wrote Resources/AppIcon.icns, Resources/MenuBarIcon.png, Resources/MenuBarIcon@2x.png, docs/media/logo.png"
+# GitHub social preview (Settings > General > Social preview takes a manual upload).
+"$CHROME" --headless=new --disable-gpu --hide-scrollbars --window-size=1280,640 \
+    --screenshot="$ROOT_DIR/docs/media/social-preview.png" "file://$ROOT_DIR/assets/social-preview.html" >/dev/null 2>&1
+
+echo "wrote Resources/AppIcon.icns, Resources/MenuBarIcon*.png, docs/media/logo.png, docs/media/social-preview.png"

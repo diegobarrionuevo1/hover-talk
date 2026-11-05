@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea
+    url: https://github.com/diegobarrionuevo1/hover-talk/discussions
+    about: Ask how something works or suggest a direction before opening an issue.

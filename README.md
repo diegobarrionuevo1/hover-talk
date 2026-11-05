@@ -4,6 +4,8 @@
 
 <p align="center"><strong>Point at text. Click. Listen.</strong></p>
 
+**Text-to-speech for macOS that reads what you point at: terminal output, AI coding agent answers, web pages and desktop apps.** Free, open source, no accounts, no telemetry.
+
 HoverTalk is a macOS menu-bar app that reads text aloud from the place you point at. Press a hotkey, move the mouse over a paragraph (it gets outlined), click, and HoverTalk reads it and everything below it. It was built for people who listen to long AI-agent answers in the terminal while doing something else, and it also works in browsers and desktop apps.
 
 <p align="center">
@@ -26,9 +28,20 @@ macOS reads what it is told to, chrome included. In a terminal it reads the tmux
 | Where | Status |
 |---|---|
 | **Ghostty** with plain shells, **tmux** (splits and separate windows), **Gentle Shell**, **OpenCode**, **Claude Code** | Works. Each program has a profile that strips its interface |
-| **Chrome**, **Chromium and Electron apps** (such as the Claude and ChatGPT desktop apps) | Works, through the accessibility tree |
+| **Google Chrome** and other Chromium browsers | Works, through the accessibility tree |
+| **Claude desktop app**, **ChatGPT desktop app** and other Electron apps | Works, through the accessibility tree |
 | **Safari** and other native apps | Uses the same accessibility reader; not verified app by app |
+| **IDEs**: VS Code, Cursor, Zed, JetBrains… | Not tested yet. Some are Electron apps and may partly work; see the [roadmap](#roadmap) |
 | Terminals other than Ghostty (iTerm2, Terminal.app, kitty, WezTerm…) | Untested. HoverTalk reads the text area Ghostty exposes for the whole screen; other terminals may expose less |
+
+## Roadmap
+
+HoverTalk works today for the author's daily setup, and you can help it work for yours. Small, well-scoped tasks are labeled [`good first issue`](https://github.com/diegobarrionuevo1/hover-talk/labels/good%20first%20issue); bigger ones are [`help wanted`](https://github.com/diegobarrionuevo1/hover-talk/labels/help%20wanted). The main directions:
+
+- **IDEs** (Zed, Cursor, VS Code, JetBrains): find out what each exposes through Accessibility and add support.
+- **More terminals** (iTerm2, kitty, WezTerm, Terminal.app).
+- **More agent TUIs**: profiles for Codex CLI, Gemini CLI, Aider and others. A profile is one small file; see [docs/tui-profiles.md](docs/tui-profiles.md).
+- **Configurable hotkeys**, and a signed, notarized download.
 
 ## Requirements
 
@@ -94,6 +107,18 @@ The *Voice* menu lists your macOS voices grouped by language and quality. Downlo
 
 If you run an OpenAI-compatible speech server such as [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) on another machine, HoverTalk can read with its voices and falls back to the system voice by itself when the server is off. It is off until you enable it. See [docs/voice-server.md](docs/voice-server.md).
 
+## FAQ
+
+**Is there a tool that reads my terminal or AI agent output aloud on macOS?** Yes, this one. Point at an answer from Claude Code, OpenCode, Gentle Shell or any shell in Ghostty, and it reads only the answer, without the status bar, sidebars or borders.
+
+**Does it work with ChatGPT or Claude in the browser or the desktop app?** Yes. Point at a message and it reads that message and the ones below it.
+
+**Does it need an internet connection or an account?** No. It uses the voices already on your Mac. An optional self-hosted voice server (such as Kokoro) can replace them.
+
+**Does it send my screen anywhere?** No. See [Privacy](#privacy).
+
+**Which languages does it read?** Any language your macOS voices support.
+
 ## Privacy
 
 - No telemetry, no analytics, no network calls by default.
@@ -112,7 +137,7 @@ If you run an OpenAI-compatible speech server such as [Kokoro-FastAPI](https://g
 
 ## Contributing
 
-Pull requests are welcome, especially **TUI profiles** for the programs you use. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/tui-profiles.md](docs/tui-profiles.md).
+Pull requests are welcome, especially **TUI profiles** for the programs you use and **checks of apps and IDEs** nobody has tried yet (see the [`good first issue`](https://github.com/diegobarrionuevo1/hover-talk/labels/good%20first%20issue) list). Start with [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/tui-profiles.md](docs/tui-profiles.md).
 
 ```sh
 swift build

@@ -1,0 +1,30 @@
+name: Bug report
+description: Something is read wrongly, not read, or the app misbehaves.
+labels: [bug]
+body:
+  - type: input
+    id: app
+    attributes:
+      label: App and terminal
+      description: The app you pointed at, and the terminal and program inside it if any (for example "Ghostty + tmux + Claude Code").
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: macOS version and HoverTalk commit or version.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: probe
+    attributes:
+      label: Structure-only probe (optional, never prints text)
+      description: Output of `swift run HoverTalkCapture probe --delay 5` with the pointer over the problem. It prints geometry and counts, not what is on screen.
+      render: text
