@@ -6,7 +6,10 @@
 
 HoverTalk is a macOS menu-bar app that reads text aloud from the place you point at. Press a hotkey, move the mouse over a paragraph (it gets outlined), click, and HoverTalk reads it and everything below it. It was built for people who listen to long AI-agent answers in the terminal while doing something else, and it also works in browsers and desktop apps.
 
-<!-- TODO: add a demo GIF here: docs/media/demo.gif -->
+<p align="center">
+  <a href="docs/media/demo.mp4"><img src="docs/media/demo.gif" alt="HoverTalk in Ghostty: pointing at a paragraph outlines it, a click reads it aloud, and the reading follows the sentence and the word" width="800"></a>
+  <br><sub>Click the demo to watch it with sound.</sub>
+</p>
 
 ## Why not macOS "Speak Selection"?
 
