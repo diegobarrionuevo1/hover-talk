@@ -66,6 +66,63 @@ public struct ReadingAnchor: Equatable, Sendable, CustomStringConvertible {
         return nil
     }
 
+    /// Where a document is on a screen when only some of its rows are found.
+    public struct Placement: Equatable, Sendable {
+        /// How many rows the found rows moved (negative: up).
+        public let rowOffset: Int
+        /// The rows of the captured document, as they were captured, that match at `rowOffset`.
+        public let visibleRows: Set<Int>
+
+        public init(rowOffset: Int, visibleRows: Set<Int>) {
+            self.rowOffset = rowOffset
+            self.visibleRows = visibleRows
+        }
+
+        /// The spans on rows that are visible: the rest scrolled out of view or changed.
+        public func visible(_ spans: [RowSpan]) -> [RowSpan] {
+            spans.filter { visibleRows.contains($0.row) }
+        }
+    }
+
+    /// At least this many non-blank characters in the rows found, unless every row was found: a
+    /// few short rows can show up by chance elsewhere on a screen.
+    private static let minimumEvidence = 20
+
+    /// Where the document is on `screen`, even when only part of it is there: text that scrolled
+    /// partly out of view, or whose last rows changed because the program is still writing them.
+    /// `rowOffset(in:)` needs every row and returns `nil` then.
+    ///
+    /// Looks only inside the same `.program` pane as `rowOffset(in:)`, at every vertical shift,
+    /// counting the captured rows that lie in the pane and equal the captured text, cell for
+    /// cell. The shift with the most rows wins, then the nearest to where it was, upward first.
+    /// `nil` when no row matches, or when the rows found are not all of them and hold fewer than
+    /// `minimumEvidence` non-blank characters.
+    public func placement(in screen: ParsedScreen) -> Placement? {
+        let sameColumns = screen.panes.filter { $0.kind == .program && $0.pane.columns == paneColumns }.map(\.pane)
+        guard let pane = sameColumns.first(where: { $0.rows == paneRows })
+            ?? sameColumns.first(where: { $0.rows.overlaps(rows) })
+        else { return nil }
+
+        // Any shift that leaves at least one captured row inside the pane.
+        let lowest = pane.rows.lowerBound - rows.upperBound
+        let highest = pane.rows.upperBound - rows.lowerBound
+        var best: (offset: Int, rows: Set<Int>, characters: Int)?
+        for distance in 0...max(abs(lowest), abs(highest)) {
+            for offset in Set([-distance, distance]).sorted() where (lowest...highest).contains(offset) {
+                var found = Set<Int>()
+                var characters = 0
+                for row in captured where pane.rows.contains(row.span.row + offset)
+                    && screen.grid.text(row: row.span.row + offset, in: row.span.columns) == row.text {
+                    found.insert(row.span.row)
+                    characters += row.text.filter { !$0.isWhitespace }.count
+                }
+                if found.count > (best?.rows.count ?? 0) { best = (offset, found, characters) }
+            }
+        }
+        guard let best, best.rows.count == captured.count || best.characters >= Self.minimumEvidence else { return nil }
+        return Placement(rowOffset: best.offset, visibleRows: best.rows)
+    }
+
     public var description: String {
         "ReadingAnchor(rows: \(rows), columns: \(columns), paneColumns: \(paneColumns))"
     }

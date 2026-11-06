@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import HoverTalkCore
 
@@ -144,5 +145,115 @@ struct StackedPaneAnchorTests {
         let anchor = try #require(screen(before).block(at: CGPoint(x: 15, y: 90))?.anchor)
         #expect(anchor.rowOffset(in: screen(before)) == 0)
         #expect(anchor.rowOffset(in: screen(after)) == -1)
+    }
+}
+
+/// `placement(in:)` keeps finding a document that scrolled partly out of view or whose last
+/// row is still being written, which `rowOffset(in:)` (all rows or nothing) loses.
+@Suite("ReadingAnchor placement")
+struct ReadingAnchorPlacementTests {
+    /// Every row padded to the terminal's width, as Ghostty reports them: a screen's width does
+    /// not change with its text.
+    private func parsed(_ rows: [String]) -> ParsedScreen {
+        let lines = rows.map { $0.padding(toLength: 60, withPad: " ", startingAt: 0) }
+        return ParsedScreen(lines: lines, frame: CGRect(x: 0, y: 0, width: 600, height: CGFloat(lines.count) * 20))
+    }
+
+    private static let first = "first row of the long paragraph"
+    private static let second = "second row of the long paragraph"
+    private static let third = "third row of the long paragraph"
+    /// Eight rows; the paragraph is on rows 2...4.
+    private let lines = ["intro", "", first, second, third, "", "tail", ""]
+
+    private func anchor() throws -> ReadingAnchor {
+        let block = try #require(parsed(lines).block(at: CGPoint(x: 5, y: 50)))
+        #expect(block.rows == 2...4)
+        return try #require(block.anchor)
+    }
+
+    private func screen(_ rows: [String], padTo count: Int = 8) -> ParsedScreen {
+        parsed(rows + Array(repeating: "", count: max(0, count - rows.count)))
+    }
+
+    @Test("On the screen it was captured from, every row is where it was")
+    func sameScreen() throws {
+        let placement = try #require(anchor().placement(in: parsed(lines)))
+
+        #expect(placement.rowOffset == 0)
+        #expect(placement.visibleRows == [2, 3, 4])
+    }
+
+    @Test("Scrolled so the first rows left the screen, the rest is still found, and only those rows are visible")
+    func scrolledOutAtTheTop() throws {
+        let scrolled = screen([Self.third, "", "tail", "", "more", "", "", ""])
+        let placement = try #require(anchor().placement(in: scrolled))
+
+        #expect(placement.rowOffset == -4)
+        #expect(placement.visibleRows == [4])
+        #expect(try anchor().rowOffset(in: scrolled) == nil)
+    }
+
+    @Test("Pushed down so the last rows left the screen, the first rows are still found")
+    func scrolledOutAtTheBottom() throws {
+        let scrolled = screen(["", "", "", "", Self.first, Self.second])
+        let placement = try #require(anchor().placement(in: scrolled))
+
+        #expect(placement.rowOffset == 2)
+        #expect(placement.visibleRows == [2, 3])
+    }
+
+    @Test("A last row that changed while the agent writes does not lose the others")
+    func lastRowStillBeingWritten() throws {
+        var growing = lines
+        growing[4] = "third row of the long paragraph, now longer than before"
+        let placement = try #require(anchor().placement(in: parsed(growing)))
+
+        #expect(placement.rowOffset == 0)
+        #expect(placement.visibleRows == [2, 3])
+    }
+
+    @Test("Writing pushes the text up and changes its last row at once: found at the new place")
+    func scrollAndGrowTogether() throws {
+        let moved = screen(["intro", Self.first, Self.second, "third row of the long paragraph, and more", "", "tail", "", ""])
+        let placement = try #require(anchor().placement(in: moved))
+
+        #expect(placement.rowOffset == -1)
+        #expect(placement.visibleRows == [2, 3])
+    }
+
+    @Test("Too little left to be sure, or nothing, gives no placement")
+    func notEnoughEvidence() throws {
+        let short = parsed(["intro", "", "a", "b", "c", "", "tail", ""])
+        let block = try #require(short.block(at: CGPoint(x: 5, y: 50)))
+        let tiny = try #require(block.anchor)
+
+        #expect(tiny.placement(in: parsed(["intro", "", "a", "x", "y", "", "tail", ""])) == nil)
+        #expect(try anchor().placement(in: screen([])) == nil)
+        #expect(try anchor().placement(in: screen(["unrelated", "text", "here"])) == nil)
+    }
+
+    @Test("A document that fits entirely still counts when it is short")
+    func shortButComplete() throws {
+        let short = parsed(["intro", "", "a", "", "tail", "", "", ""])
+        let tiny = try #require(short.block(at: CGPoint(x: 5, y: 50))?.anchor)
+
+        #expect(tiny.placement(in: short)?.visibleRows == [2])
+    }
+
+    @Test("Only the spans of visible rows are kept")
+    func visibleSpans() throws {
+        let placement = ReadingAnchor.Placement(rowOffset: 0, visibleRows: [3, 4])
+        let spans = [RowSpan(row: 2, columns: 0...5), RowSpan(row: 3, columns: 0...5), RowSpan(row: 4, columns: 0...2)]
+
+        #expect(placement.visible(spans) == Array(spans.dropFirst()))
+    }
+
+    @Test("When a match is repeated, the one with more rows wins, then the nearest")
+    func moreRowsThenNearest() throws {
+        let twice = screen([Self.second, Self.third, "", Self.first, Self.second, Self.third, "", ""])
+        let placement = try #require(anchor().placement(in: twice))
+
+        #expect(placement.rowOffset == 1)
+        #expect(placement.visibleRows == [2, 3, 4])
     }
 }
