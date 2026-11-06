@@ -31,8 +31,8 @@ struct FixtureScreen {
     }
 
     /// The block under the centre of a cell, with the standard profile registry.
-    func block(row: Int, column: Int) -> TerminalTextBlock? {
-        TerminalGridProvider.block(at: center(row: row, column: column), frame: frame, lines: lines)
+    func block(row: Int, column: Int, statusBar: StatusEdge? = nil) -> TerminalTextBlock? {
+        TerminalGridProvider.block(at: center(row: row, column: column), frame: frame, lines: lines, statusBar: statusBar)
     }
 
     /// Rows cut to a pane's columns: what a profile receives.

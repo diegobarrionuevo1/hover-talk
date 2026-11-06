@@ -38,6 +38,8 @@ Line count, line lengths, layout and glyphs are real; the words and numbers are 
 
 - `synthetic-claude-code.json` is hand-written, not captured: a Claude Code screen modelled on its well-known layout (welcome and input boxes, `⏺` messages and tool calls, `⎿` results, hint rows), with neutral made-up text and `frame: null`. It has not been checked against a live capture yet; replace it with a sanitized capture when one exists. Its rows carry no trailing spaces.
 
+- `synthetic-gentle-shell-sidebar.json` is hand-written too: a full-width Gentle Shell under a tmux status row, with its right sidebar (sections behind `▾`), memory echo rows, the "Jump to latest message" pill, the editor frame and the footer. It is the layout of later Gentle Shell versions, which draw no `▎` gutters or `▔▔▔` rule in the conversation (the captured `ghostty-tmux-gentle-shell.json` is the earlier one). Neutral made-up text, `frame: null`. Replace it with a sanitized capture of a screen that shows the sidebar when one exists.
+
 ## Adding a fixture
 
 1. Set up the screen you need and run one of the commands above with a descriptive name (`<app>-<layout>-<content>.json`).
